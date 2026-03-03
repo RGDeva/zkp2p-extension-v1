@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router';
 import styled, { keyframes } from 'styled-components';
 import { colors } from '@theme/colors';
 import { fadeIn, scaleIn, shimmerSweep, AnimatedGradientSpan } from '@components/XRampShared';
+import { useAuth, truncateAddress } from '../../contexts/AuthContext';
 
 import xrampLogo from '../../assets/img/xramp-logo-full.png';
 
@@ -32,8 +33,14 @@ type ActivityItem = {
 
 export default function XRampHome(): ReactElement {
   const navigate = useNavigate();
+  const { user, logout } = useAuth();
   const [showSettings, setShowSettings] = useState(false);
   const settingsRef = useRef<HTMLDivElement>(null);
+
+  const displayId = user?.email ||
+    (user?.walletAddress ? truncateAddress(user.walletAddress) : null) ||
+    (user?.embeddedWalletAddress ? truncateAddress(user.embeddedWalletAddress) : null) ||
+    'Account';
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -48,6 +55,12 @@ export default function XRampHome(): ReactElement {
 
   const handleOpenApp = () => {
     chrome.tabs.create({ url: XRAMP_URL });
+  };
+
+  const handleLogout = async () => {
+    setShowSettings(false);
+    await logout();
+    navigate('/login');
   };
 
   const statusColor = (s: ActivityItem['status']) => {
@@ -147,6 +160,15 @@ export default function XRampHome(): ReactElement {
                 <span>Reset Extension</span>
               </SettingsItem>
 
+              <LogoutItem onClick={handleLogout}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                  <polyline points="16 17 21 12 16 7" />
+                  <line x1="21" y1="12" x2="9" y2="12" />
+                </svg>
+                <span>Logout</span>
+              </LogoutItem>
+
               <SettingsDivider />
 
               <SettingsFooter>
@@ -172,44 +194,51 @@ export default function XRampHome(): ReactElement {
       <ScrollArea>
         {/* Welcome Card */}
         <WelcomeCard>
-          <WelcomeRow>
-            <div>
-              <WelcomeSubtitle>P2P Crypto On/Off-Ramp</WelcomeSubtitle>
-            </div>
-          </WelcomeRow>
+          <WelcomeTop>
+            <WelcomeSubtitle>P2P Crypto On/Off-Ramp</WelcomeSubtitle>
+            <UserChip>
+              <UserDot />
+              <UserLabel>{displayId}</UserLabel>
+            </UserChip>
+          </WelcomeTop>
           <BalanceRow>
-            <BalanceAmount>$0.00</BalanceAmount>
+            <BalanceCurrency>$</BalanceCurrency>
+            <BalanceInteger>0</BalanceInteger>
+            <BalanceDecimal>.00</BalanceDecimal>
           </BalanceRow>
         </WelcomeCard>
 
-        {/* Action Buttons Row */}
+        {/* Action Buttons Row — InteractiveHoverButton style */}
         <ActionRow>
-          <ActionBtn onClick={() => navigate('/buy')}>
-            <ActionIconCircle $variant="buy">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <HoverBtn onClick={() => navigate('/buy')} $color={colors.successGreen}>
+            <HoverBtnDot $color={colors.successGreen} />
+            <HoverBtnContent>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <line x1="12" y1="19" x2="12" y2="5" /><polyline points="5 12 12 5 19 12" />
               </svg>
-            </ActionIconCircle>
-            <ActionBtnLabel>Buy</ActionBtnLabel>
-          </ActionBtn>
+              Buy
+            </HoverBtnContent>
+          </HoverBtn>
 
-          <ActionBtn onClick={() => navigate('/sell')}>
-            <ActionIconCircle $variant="sell">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <HoverBtn onClick={() => navigate('/sell')} $color={colors.primary}>
+            <HoverBtnDot $color={colors.primary} />
+            <HoverBtnContent>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <line x1="12" y1="5" x2="12" y2="19" /><polyline points="19 12 12 19 5 12" />
               </svg>
-            </ActionIconCircle>
-            <ActionBtnLabel>Sell</ActionBtnLabel>
-          </ActionBtn>
+              Sell
+            </HoverBtnContent>
+          </HoverBtn>
 
-          <ActionBtn onClick={() => navigate('/send')}>
-            <ActionIconCircle $variant="send">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <HoverBtn onClick={() => navigate('/send')} $color={colors.indigoAccent}>
+            <HoverBtnDot $color={colors.indigoAccent} />
+            <HoverBtnContent>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" />
               </svg>
-            </ActionIconCircle>
-            <ActionBtnLabel>Send</ActionBtnLabel>
-          </ActionBtn>
+              Send
+            </HoverBtnContent>
+          </HoverBtn>
         </ActionRow>
 
         {/* Proofs Card */}
@@ -406,6 +435,12 @@ const SettingsItem = styled.button`
   svg { flex-shrink: 0; color: ${colors.subtitleColor}; }
 `;
 
+const LogoutItem = styled(SettingsItem)`
+  color: ${colors.warningRed};
+  svg { color: ${colors.warningRed}; }
+  &:hover { background: rgba(239,68,68,0.08); }
+`;
+
 const SettingsItemText = styled.div`
   display: flex;
   flex-direction: column;
@@ -519,8 +554,11 @@ const WelcomeCard = styled.div`
   &:hover::after { animation: ${shimmerSweep} 2s ease-in-out; }
 `;
 
-const WelcomeRow = styled.div`
-  margin-bottom: 0.25rem;
+const WelcomeTop = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.625rem;
 `;
 
 const WelcomeSubtitle = styled.div`
@@ -529,17 +567,64 @@ const WelcomeSubtitle = styled.div`
   color: ${colors.subtitleColor};
 `;
 
+const UserChip = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 3px 10px 3px 7px;
+  border-radius: 100px;
+  background: ${colors.primaryMuted};
+  border: 1px solid rgba(25,197,214,0.15);
+  max-width: 160px;
+  overflow: hidden;
+`;
+
+const UserDot = styled.div`
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: ${colors.successGreen};
+  flex-shrink: 0;
+`;
+
+const UserLabel = styled.span`
+  font-size: 11px;
+  font-weight: 500;
+  color: ${colors.primary};
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+`;
+
 const BalanceRow = styled.div`
   display: flex;
   align-items: baseline;
-  gap: 0.375rem;
+  gap: 1px;
 `;
 
-const BalanceAmount = styled.span`
-  font-size: 30px;
+const BalanceCurrency = styled.span`
+  font-size: 20px;
+  font-weight: 600;
+  color: ${colors.subtitleColor};
+  align-self: flex-start;
+  margin-top: 4px;
+  margin-right: 2px;
+`;
+
+const BalanceInteger = styled.span`
+  font-size: 36px;
   font-weight: 700;
   color: ${colors.foreground};
-  letter-spacing: -1px;
+  letter-spacing: -1.5px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+`;
+
+const BalanceDecimal = styled.span`
+  font-size: 22px;
+  font-weight: 600;
+  color: ${colors.subtitleColor};
+  letter-spacing: -0.5px;
   font-variant-numeric: tabular-nums;
 `;
 
@@ -549,55 +634,61 @@ const BalanceAmount = styled.span`
 
 const ActionRow = styled.div`
   display: flex;
-  justify-content: center;
-  gap: 2rem;
+  gap: 0.625rem;
   animation: ${fadeIn} 0.5s ease-out 0.08s both;
 `;
 
-const ActionBtn = styled.button`
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.5rem;
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: 0;
-  transition: transform 0.15s ease;
-  &:active { transform: scale(0.95); }
-`;
-
-const ActionIconCircle = styled.div<{ $variant: string }>`
+/* InteractiveHoverButton — expanding dot fills button on hover */
+const HoverBtn = styled.button<{ $color: string }>`
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 48px;
-  height: 48px;
-  border-radius: 50%;
-  border: 1px solid ${colors.border};
-  background: ${colors.card};
-  transition: all 0.2s ease;
-  color: ${({ $variant }: { $variant: string }) => {
-    switch ($variant) {
-      case 'buy': return colors.successGreen;
-      case 'sell': return colors.primary;
-      case 'send': return colors.indigoAccent;
-      default: return colors.primary;
-    }
-  }};
+  flex: 1;
+  height: 44px;
+  border-radius: 0.75rem;
+  border: 1px solid ${(p: { $color: string }) => p.$color}33;
+  background: transparent;
+  color: ${colors.foreground};
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  overflow: hidden;
+  transition: color 0.3s ease, border-color 0.25s ease;
 
-  ${ActionBtn}:hover & {
-    border-color: ${colors.selectorHoverBorder};
-    background: ${colors.selectorHover};
-    box-shadow: 0 0 16px -4px rgba(25,197,214,0.2);
+  &:hover {
+    color: #000;
+    border-color: ${(p: { $color: string }) => p.$color};
   }
+
+  &:hover > span:first-child {
+    width: 200%;
+    padding-bottom: 200%;
+  }
+
+  &:active { transform: scale(0.97); }
 `;
 
-const ActionBtnLabel = styled.span`
-  font-size: 12px;
-  font-weight: 600;
-  color: ${colors.subtitleColor};
-  ${ActionBtn}:hover & { color: ${colors.foreground}; }
+const HoverBtnDot = styled.span<{ $color: string }>`
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 0;
+  padding-bottom: 0;
+  border-radius: 50%;
+  background: ${(p: { $color: string }) => p.$color};
+  transition: width 0.4s ease, padding-bottom 0.4s ease;
+  z-index: 0;
+`;
+
+const HoverBtnContent = styled.span`
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
 `;
 
 // ---------------------------------------------------------------------------

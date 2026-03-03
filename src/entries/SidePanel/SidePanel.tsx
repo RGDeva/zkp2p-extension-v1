@@ -1,33 +1,57 @@
-import React, { useState } from 'react';
-import { Navigate, Route, Routes, useNavigate } from 'react-router';
-import styled, { keyframes, css } from 'styled-components';
-
+import React from 'react';
+import { Navigate, Route, Routes } from 'react-router';
+import styled from 'styled-components';
 import { colors } from '@theme/colors';
+import { useAuth } from '../../contexts/AuthContext';
+import { DotsLoader } from '@components/XRampShared';
 import XRampHome from '../../pages/XRampHome';
 import XRampBuy from '../../pages/XRampBuy';
 import XRampSell from '../../pages/XRampSell';
 import XRampSend from '../../pages/XRampSend';
 import XRampProofs from '../../pages/XRampProofs';
+import XRampLogin from '../../pages/XRampLogin';
 
-const XRAMP_URL =
-  process.env.NODE_ENV === 'production'
-    ? 'https://xramp-app.vercel.app'
-    : 'http://localhost:5173';
+function AuthGuard({ children }: { children: React.ReactNode }) {
+  const { isAuthenticated, isLoading } = useAuth();
+
+  if (isLoading) {
+    return (
+      <LoadingScreen>
+        <DotsLoader dots={4} />
+      </LoadingScreen>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+
+  return <>{children}</>;
+}
 
 const SidePanel = () => {
   return (
     <AppContainer>
       <Routes>
-        <Route path="/home" element={<XRampHome />} />
-        <Route path="/buy" element={<XRampBuy />} />
-        <Route path="/sell" element={<XRampSell />} />
-        <Route path="/send" element={<XRampSend />} />
-        <Route path="/proofs" element={<XRampProofs />} />
-        <Route path="*" element={<Navigate to="/home" />} />
+        <Route path="/login" element={<XRampLogin />} />
+        <Route path="/home" element={<AuthGuard><XRampHome /></AuthGuard>} />
+        <Route path="/buy" element={<AuthGuard><XRampBuy /></AuthGuard>} />
+        <Route path="/sell" element={<AuthGuard><XRampSell /></AuthGuard>} />
+        <Route path="/send" element={<AuthGuard><XRampSend /></AuthGuard>} />
+        <Route path="/proofs" element={<AuthGuard><XRampProofs /></AuthGuard>} />
+        <Route path="*" element={<Navigate to="/home" replace />} />
       </Routes>
     </AppContainer>
   );
 };
+
+const LoadingScreen = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100vh;
+`;
 
 // ---------------------------------------------------------------------------
 // Root container
@@ -44,5 +68,4 @@ const AppContainer = styled.div`
   color: ${colors.titleColor};
 `;
 
-export { XRAMP_URL };
 export default SidePanel;
