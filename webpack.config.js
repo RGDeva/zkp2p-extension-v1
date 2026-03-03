@@ -247,6 +247,15 @@ var options = {
     }),
     new CopyWebpackPlugin({
       patterns: [
+        {
+          from: path.join(__dirname, ICON_PATH, "icon-128.png"),
+          to: path.join(__dirname, "build"),
+          force: true,
+        },
+      ],
+    }),
+    new CopyWebpackPlugin({
+      patterns: [
         // {
         //   from: "node_modules/tlsn-js/build/7.js",
         //   to: path.join(__dirname, "build"),

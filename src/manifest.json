@@ -1,16 +1,17 @@
 {
   "manifest_version": 3,
-  "name": "Peer: A sidebar that connects off-chain platforms to ZKP2P",
+  "name": "XRamp: Crypto On/Off-Ramp via P2P Rails",
   "version": "0.0.8",
-  "description": "Preserve privacy while porting data from various platforms for use in ZKP2P",
+  "description": "Buy, sell, and send crypto instantly via Venmo, Cash App, Zelle and more — powered by XRamp",
   "icons": {
     "16": "icon-16.png",
     "32": "icon-32.png",
-    "48": "icon-48.png"
+    "48": "icon-48.png",
+    "128": "icon-128.png"
   },
   "action": {
     "default_icon": "icon-32.png",
-    "default_title": "Toggle ZKP2P Sidebar"
+    "default_title": "Open XRamp"
   },
   "options_page": "options.html", 
   "background": {
@@ -45,6 +46,8 @@
     }
   ],
   "host_permissions": [
+    "https://xramp-app.vercel.app/*",
+    "http://localhost:5173/*",
     "https://app.revolut.com/*",
     "https://zkp2p.xyz/*"
   ],

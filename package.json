@@ -1,6 +1,6 @@
 {
-  "name": "zk-p2p-extension",
-  "version": "0.0.1",
+  "name": "xramp-extension",
+  "version": "0.1.0",
   "scripts": {
     "clone:tlsn": "bash ./utils/download-tlsn.sh",
     "build": "NODE_ENV=production node utils/build.js",

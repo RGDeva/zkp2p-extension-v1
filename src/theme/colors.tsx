@@ -26,27 +26,33 @@ export const colors = {
   white: '#FFFFFF',
   black: '#000000',
 
-  appBackground: '#171717',
+  // XRamp brand — dark charcoal background, emerald accent
+  appBackground: '#0a0a0a',
+  primary: '#10b981',
+  primaryHover: '#059669',
+  primaryMuted: 'rgba(16,185,129,0.15)',
 
-  container: '#0D111C',
+  container: '#111111',
+  card: '#1a1a1a',
 
-  buttonRed: '#DF2E2D',
-  buttonRedDisabled: '#EF9696',
+  buttonRed: '#ef4444',
+  buttonRedDisabled: '#fca5a5',
 
-  disabledGray: '#6C757D',
-  warningRed: '#DF2E2D',
-  successGreen: '#4BB543',
+  disabledGray: '#6b7280',
+  warningRed: '#ef4444',
+  successGreen: '#10b981',
 
-  defaultBorderColor: '#98A1C03D',
-  readOnlyBorderColor: '#98A1C03D',
+  defaultBorderColor: 'rgba(255,255,255,0.08)',
+  readOnlyBorderColor: 'rgba(255,255,255,0.06)',
 
   titleColor: '#FFFFFF',
-  subtitleColor: '#CED4DA',
+  subtitleColor: '#9ca3af',
+  mutedForeground: '#6b7280',
 
-  defaultInputColor: '#131A2A',
-  readOnlyInputColor: '#101A2A',
+  defaultInputColor: '#111111',
+  readOnlyInputColor: '#0d0d0d',
 
-  selectorColor: '#0D111C',
-  selectorHover: '#1B1E29',
-  selectorHoverBorder: 'rgba(255, 255, 255, 0.1)',
+  selectorColor: '#111111',
+  selectorHover: '#1f1f1f',
+  selectorHoverBorder: 'rgba(16,185,129,0.2)',
 };
