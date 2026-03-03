@@ -6,7 +6,7 @@ import {
   PageWrapper, PageTopBar, BackButton, PageTitle, Divider,
   ScrollContent, Card, Label, InputRow, AmountInput,
   SelectorButton, ChevronDown, DropdownOverlay, DropdownList, DropdownItem,
-  InfoRow, InfoLabel, InfoValue, PrimaryButton, ErrorRow, DotsLoader, TextInput,
+  InfoRow, InfoLabel, InfoValue, PrimaryButton, ButtonText, ErrorRow, DotsLoader, TextInput,
 } from '@components/XRampShared';
 
 const TOKENS = [
@@ -139,7 +139,7 @@ export default function XRampSend(): ReactElement {
         {submitting && <DotsLoader dots={3} />}
 
         <PrimaryButton disabled={!canContinue || submitting} onClick={handleSubmit}>
-          {submitting ? 'Sending…' : 'Send'}
+          <ButtonText>{submitting ? 'Sending…' : 'Send'}</ButtonText>
         </PrimaryButton>
       </ScrollContent>
     </PageWrapper>

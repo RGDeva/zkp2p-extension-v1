@@ -2,6 +2,9 @@ import React, { ReactElement } from 'react';
 import { useNavigate } from 'react-router';
 import styled, { keyframes } from 'styled-components';
 import { colors } from '@theme/colors';
+import { fadeIn, shimmerSweep, AnimatedGradientSpan } from '@components/XRampShared';
+
+import xrampLogo from '../../assets/img/xramp-logo-full.png';
 
 const XRAMP_URL =
   process.env.NODE_ENV === 'production'
@@ -17,11 +20,13 @@ export default function XRampHome(): ReactElement {
 
   return (
     <PageWrapper>
+      {/* Subtle proof-grid bg */}
+      <ProofGrid />
+
       {/* Top Nav */}
       <TopNav>
         <LogoRow>
-          <LogoMark>X</LogoMark>
-          <LogoText>XRamp</LogoText>
+          <LogoImg src={xrampLogo} alt="XRamp" />
         </LogoRow>
         <SettingsButton onClick={handleOpenApp} title="Open XRamp App">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -35,7 +40,7 @@ export default function XRampHome(): ReactElement {
       <Divider />
 
       <ScrollArea>
-        {/* Welcome Card */}
+        {/* Welcome Card — cyan glow on hover */}
         <WelcomeCard>
           <WelcomeRow>
             <div>
@@ -55,38 +60,39 @@ export default function XRampHome(): ReactElement {
           </BalanceRow>
         </WelcomeCard>
 
-        {/* Action Grid — matches Peer extension layout */}
+        {/* Action Grid — matches XRamp Home.tsx */}
         <ActionGrid>
-          <ActionCard onClick={() => navigate('/buy')}>
+          <ActionCard onClick={() => navigate('/buy')} $delay={0.1}>
             <ActionIconWrapper $variant="buy">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="12" y1="1" x2="12" y2="23" />
-                <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
-              </svg>
-            </ActionIconWrapper>
-            <ActionLabel>BUY</ActionLabel>
-          </ActionCard>
-
-          <ActionCard onClick={() => navigate('/sell')}>
-            <ActionIconWrapper $variant="sell">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <line x1="12" y1="19" x2="12" y2="5" />
                 <polyline points="5 12 12 5 19 12" />
               </svg>
             </ActionIconWrapper>
-            <ActionLabel>SELL</ActionLabel>
+            <ActionLabel>Buy</ActionLabel>
           </ActionCard>
 
-          <ActionCard onClick={() => navigate('/send')}>
-            <ActionIconWrapper $variant="send">
+          <ActionCard onClick={() => navigate('/sell')} $delay={0.15}>
+            <ActionIconWrapper $variant="sell">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="22" y1="2" x2="11" y2="13" />
-                <polygon points="22 2 15 22 11 13 2 9 22 2" />
+                <line x1="12" y1="5" x2="12" y2="19" />
+                <polyline points="19 12 12 19 5 12" />
               </svg>
             </ActionIconWrapper>
-            <ActionLabel>SEND</ActionLabel>
+            <ActionLabel>Sell</ActionLabel>
           </ActionCard>
         </ActionGrid>
+
+        {/* Send — full-width card like Peer's PROOFS */}
+        <SendCard onClick={() => navigate('/send')}>
+          <ActionIconWrapper $variant="send" style={{ width: 36, height: 36 }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="22" y1="2" x2="11" y2="13" />
+              <polygon points="22 2 15 22 11 13 2 9 22 2" />
+            </svg>
+          </ActionIconWrapper>
+          <ActionLabel>Send</ActionLabel>
+        </SendCard>
 
         {/* Activity Section */}
         <SectionHeader>ACTIVITY</SectionHeader>
@@ -101,9 +107,9 @@ export default function XRampHome(): ReactElement {
           <ActivityEmptySubtext>Your buys and sells will show up here</ActivityEmptySubtext>
         </ActivityCard>
 
-        {/* Powered by footer */}
+        {/* Footer */}
         <FooterText>
-          Minimal data · Proof-based settlement
+          Minimal data · <AnimatedGradientSpan>Proof-based settlement</AnimatedGradientSpan>
         </FooterText>
       </ScrollArea>
     </PageWrapper>
@@ -114,14 +120,9 @@ export default function XRampHome(): ReactElement {
 // Animations
 // ---------------------------------------------------------------------------
 
-const fadeIn = keyframes`
-  from { opacity: 0; transform: translateY(8px); }
-  to   { opacity: 1; transform: translateY(0); }
-`;
-
-const glowPulse = keyframes`
-  0%, 100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
-  50%      { box-shadow: 0 0 20px 2px rgba(16, 185, 129, 0.15); }
+const cyanGlow = keyframes`
+  0%, 100% { box-shadow: 0 0 0 0 rgba(25,197,214,0); }
+  50%      { box-shadow: 0 0 24px 2px rgba(25,197,214,0.15); }
 `;
 
 // ---------------------------------------------------------------------------
@@ -129,6 +130,7 @@ const glowPulse = keyframes`
 // ---------------------------------------------------------------------------
 
 const PageWrapper = styled.div`
+  position: relative;
   display: flex;
   flex-direction: column;
   width: 100%;
@@ -136,7 +138,21 @@ const PageWrapper = styled.div`
   overflow: hidden;
 `;
 
+const ProofGrid = styled.div`
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(to right, ${colors.border} 1px, transparent 1px),
+    linear-gradient(to bottom, ${colors.border} 1px, transparent 1px);
+  background-size: 40px 40px;
+  opacity: 0.03;
+  pointer-events: none;
+  z-index: 0;
+`;
+
 const TopNav = styled.nav`
+  position: relative;
+  z-index: 1;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -150,25 +166,10 @@ const LogoRow = styled.div`
   gap: 0.5rem;
 `;
 
-const LogoMark = styled.span`
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  border-radius: 10px;
-  background: ${colors.primary};
-  color: #000;
-  font-weight: 900;
-  font-size: 16px;
-  letter-spacing: -1px;
-`;
-
-const LogoText = styled.span`
-  font-size: 20px;
-  font-weight: 700;
-  color: ${colors.titleColor};
-  letter-spacing: -0.5px;
+const LogoImg = styled.img`
+  height: 28px;
+  width: auto;
+  object-fit: contain;
 `;
 
 const SettingsButton = styled.button`
@@ -177,28 +178,33 @@ const SettingsButton = styled.button`
   justify-content: center;
   width: 36px;
   height: 36px;
-  border-radius: 10px;
-  border: 1px solid ${colors.defaultBorderColor};
+  border-radius: 0.75rem;
+  border: 1px solid ${colors.border};
   background: transparent;
   color: ${colors.subtitleColor};
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all 0.2s ease;
 
   &:hover {
-    background: ${colors.card};
-    color: ${colors.titleColor};
+    background: ${colors.secondary};
+    color: ${colors.foreground};
     border-color: ${colors.primary};
+    box-shadow: 0 0 12px -3px rgba(25,197,214,0.25);
   }
 `;
 
 const Divider = styled.div`
+  position: relative;
+  z-index: 1;
   width: 100%;
   height: 1px;
-  background: ${colors.defaultBorderColor};
+  background: ${colors.border};
   flex-shrink: 0;
 `;
 
 const ScrollArea = styled.div`
+  position: relative;
+  z-index: 1;
   flex: 1;
   overflow-y: auto;
   padding: 1rem 1.25rem 1.5rem;
@@ -206,28 +212,38 @@ const ScrollArea = styled.div`
   flex-direction: column;
   gap: 1rem;
 
-  &::-webkit-scrollbar {
-    width: 4px;
-  }
-  &::-webkit-scrollbar-track {
-    background: transparent;
-  }
-  &::-webkit-scrollbar-thumb {
-    background: ${colors.defaultBorderColor};
-    border-radius: 4px;
-  }
+  &::-webkit-scrollbar { width: 4px; }
+  &::-webkit-scrollbar-track { background: transparent; }
+  &::-webkit-scrollbar-thumb { background: ${colors.border}; border-radius: 4px; }
 `;
 
 const WelcomeCard = styled.div`
+  position: relative;
   background: ${colors.card};
-  border: 1px solid ${colors.defaultBorderColor};
-  border-radius: 16px;
-  padding: 1.25rem;
-  animation: ${fadeIn} 0.35s ease both;
-  transition: box-shadow 0.3s ease;
+  border: 1px solid ${colors.border};
+  border-radius: 1.25rem;
+  padding: 1.5rem;
+  animation: ${fadeIn} 0.5s ease-out both;
+  box-shadow: 0 8px 32px -8px rgba(0,0,0,0.5);
+  transition: box-shadow 0.3s ease, border-color 0.3s ease;
+  overflow: hidden;
 
   &:hover {
-    animation: ${glowPulse} 2s ease infinite;
+    border-color: rgba(25,197,214,0.2);
+    animation: ${cyanGlow} 2s ease infinite;
+  }
+
+  /* shimmer sweep */
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, transparent 0%, rgba(25,197,214,0.04) 50%, transparent 100%);
+    transform: translateX(-100%);
+    pointer-events: none;
+  }
+  &:hover::after {
+    animation: ${shimmerSweep} 2s ease-in-out;
   }
 `;
 
@@ -241,7 +257,7 @@ const WelcomeRow = styled.div`
 const WelcomeTitle = styled.div`
   font-size: 15px;
   font-weight: 600;
-  color: ${colors.titleColor};
+  color: ${colors.foreground};
 `;
 
 const WelcomeSubtitle = styled.div`
@@ -257,10 +273,11 @@ const BalanceRow = styled.div`
 `;
 
 const BalanceAmount = styled.span`
-  font-size: 28px;
+  font-size: 32px;
   font-weight: 700;
-  color: ${colors.titleColor};
+  color: ${colors.foreground};
   letter-spacing: -1px;
+  font-variant-numeric: tabular-nums;
 `;
 
 const RefreshIcon = styled.span`
@@ -268,10 +285,11 @@ const RefreshIcon = styled.span`
   align-items: center;
   color: ${colors.mutedForeground};
   cursor: pointer;
-  transition: color 0.15s;
+  transition: color 0.2s, transform 0.3s;
 
   &:hover {
     color: ${colors.primary};
+    transform: rotate(180deg);
   }
 `;
 
@@ -279,67 +297,85 @@ const ActionGrid = styled.div`
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 0.75rem;
-  animation: ${fadeIn} 0.35s ease 0.08s both;
 `;
 
-const ActionCard = styled.button`
+const ActionCard = styled.button<{ $delay?: number }>`
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   gap: 0.75rem;
   padding: 1.25rem;
-  border-radius: 16px;
-  border: 1px solid ${colors.defaultBorderColor};
+  border-radius: 1.25rem;
+  border: 1px solid ${colors.border};
   background: ${colors.card};
   cursor: pointer;
-  transition: all 0.2s ease;
   text-align: left;
+  overflow: hidden;
+  box-shadow: 0 8px 32px -8px rgba(0,0,0,0.5);
+  animation: ${fadeIn} 0.5s ease-out both;
+  animation-delay: ${(p: { $delay?: number }) => p.$delay ?? 0}s;
+  transition: all 0.2s ease;
 
   &:hover {
     background: ${colors.selectorHover};
     border-color: ${colors.selectorHoverBorder};
-    transform: translateY(-1px);
+    transform: translateY(-2px);
+    box-shadow: 0 12px 36px -8px rgba(0,0,0,0.6);
   }
 
-  &:active {
-    transform: translateY(0);
-  }
+  &:active { transform: translateY(0); }
 
-  &:nth-child(3) {
-    grid-column: 1 / -1;
+  /* shimmer on hover */
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, transparent 0%, rgba(25,197,214,0.04) 50%, transparent 100%);
+    transform: translateX(-100%);
+    pointer-events: none;
   }
+  &:hover::after {
+    animation: ${shimmerSweep} 1.5s ease-in-out;
+  }
+`;
+
+const SendCard = styled(ActionCard)`
+  flex-direction: row;
+  align-items: center;
+  gap: 1rem;
+  animation-delay: 0.2s;
 `;
 
 const ActionIconWrapper = styled.div<{ $variant: string }>`
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
-  border-radius: 12px;
+  width: 42px;
+  height: 42px;
+  border-radius: 0.75rem;
   color: ${({ $variant }: { $variant: string }) => {
     switch ($variant) {
-      case 'buy': return colors.primary;
-      case 'sell': return '#f59e0b';
-      case 'send': return '#8b5cf6';
+      case 'buy': return colors.successGreen;
+      case 'sell': return colors.primary;
+      case 'send': return colors.indigoAccent;
       default: return colors.primary;
     }
   }};
   background: ${({ $variant }: { $variant: string }) => {
     switch ($variant) {
-      case 'buy': return colors.primaryMuted;
-      case 'sell': return 'rgba(245,158,11,0.12)';
-      case 'send': return 'rgba(139,92,246,0.12)';
+      case 'buy': return 'rgba(34,197,94,0.1)';
+      case 'sell': return colors.primaryMuted;
+      case 'send': return 'rgba(99,102,241,0.1)';
       default: return colors.primaryMuted;
     }
   }};
 `;
 
 const ActionLabel = styled.span`
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 700;
-  letter-spacing: 0.5px;
-  color: ${colors.titleColor};
+  color: ${colors.foreground};
 `;
 
 const SectionHeader = styled.h3`
@@ -347,21 +383,23 @@ const SectionHeader = styled.h3`
   font-weight: 700;
   letter-spacing: 1px;
   color: ${colors.mutedForeground};
-  margin: 0.25rem 0 0;
-  animation: ${fadeIn} 0.35s ease 0.16s both;
+  margin: 0.5rem 0 0;
+  animation: ${fadeIn} 0.5s ease-out 0.25s both;
 `;
 
 const ActivityCard = styled.div`
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   padding: 2rem 1.5rem;
-  border-radius: 16px;
+  border-radius: 1rem;
   background: ${colors.card};
-  border: 1px solid ${colors.defaultBorderColor};
+  border: 1px solid ${colors.border};
   gap: 0.5rem;
-  animation: ${fadeIn} 0.35s ease 0.24s both;
+  animation: ${fadeIn} 0.5s ease-out 0.3s both;
+  box-shadow: 0 8px 32px -8px rgba(0,0,0,0.5);
 `;
 
 const ActivityEmptyIcon = styled.div`
@@ -369,7 +407,7 @@ const ActivityEmptyIcon = styled.div`
   align-items: center;
   justify-content: center;
   margin-bottom: 0.25rem;
-  opacity: 0.6;
+  opacity: 0.5;
 `;
 
 const ActivityEmptyText = styled.span`
@@ -389,5 +427,5 @@ const FooterText = styled.p`
   color: ${colors.mutedForeground};
   padding: 0.5rem 0;
   margin: 0;
-  animation: ${fadeIn} 0.35s ease 0.32s both;
+  animation: ${fadeIn} 0.5s ease-out 0.35s both;
 `;

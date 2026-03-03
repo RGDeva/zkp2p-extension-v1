@@ -4,14 +4,19 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        primary: '#10b981',
-        'primary-hover': '#059669',
-        'xramp-bg': '#0a0a0a',
-        'xramp-card': '#1a1a1a',
-        'xramp-border': 'rgba(255,255,255,0.08)',
+        primary: '#19c5d6',
+        'primary-hover': '#14b8c8',
+        background: '#0a0f1a',
+        card: '#101827',
+        border: '#1a2236',
+        foreground: '#e2e8f0',
+        'muted-foreground': '#94a3b8',
+        success: '#22c55e',
+        warning: '#f59e0b',
+        destructive: '#ef4444',
       },
       fontFamily: {
-        sans: ['Inter', 'ui-sans-serif', 'system-ui', '-apple-system', 'sans-serif'],
+        sans: ['Satoshi', 'system-ui', '-apple-system', 'sans-serif'],
       },
     },
   },

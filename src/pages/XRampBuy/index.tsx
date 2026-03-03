@@ -1,4 +1,4 @@
-import React, { useState, useRef, ReactElement } from 'react';
+import React, { useState, ReactElement } from 'react';
 import { useNavigate } from 'react-router';
 import styled from 'styled-components';
 import { colors } from '@theme/colors';
@@ -6,7 +6,7 @@ import {
   PageWrapper, PageTopBar, BackButton, PageTitle, Divider,
   ScrollContent, Card, Label, InputRow, CurrencyPrefix, AmountInput,
   SelectorButton, ChevronDown, DropdownOverlay, DropdownList, DropdownItem,
-  InfoRow, InfoLabel, InfoValue, PrimaryButton, ErrorRow, DotsLoader, TextInput,
+  InfoRow, InfoLabel, InfoValue, PrimaryButton, ButtonText, ErrorRow, DotsLoader, TextInput,
 } from '@components/XRampShared';
 
 const TOKENS = [
@@ -223,7 +223,7 @@ export default function XRampBuy(): ReactElement {
           disabled={!canContinue || submitting}
           onClick={handleSubmit}
         >
-          {submitting ? 'Processing…' : 'Continue'}
+          <ButtonText>{submitting ? 'Processing…' : 'Continue'}</ButtonText>
         </PrimaryButton>
       </ScrollContent>
     </PageWrapper>

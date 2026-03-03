@@ -38,7 +38,7 @@ const AppContainer = styled.div`
   height: 100vh;
   overflow: hidden;
   background-color: ${colors.appBackground};
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family: 'Satoshi', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   color: ${colors.titleColor};
 `;
 
