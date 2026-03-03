@@ -7,6 +7,7 @@ import XRampHome from '../../pages/XRampHome';
 import XRampBuy from '../../pages/XRampBuy';
 import XRampSell from '../../pages/XRampSell';
 import XRampSend from '../../pages/XRampSend';
+import XRampProofs from '../../pages/XRampProofs';
 
 const XRAMP_URL =
   process.env.NODE_ENV === 'production'
@@ -21,6 +22,7 @@ const SidePanel = () => {
         <Route path="/buy" element={<XRampBuy />} />
         <Route path="/sell" element={<XRampSell />} />
         <Route path="/send" element={<XRampSend />} />
+        <Route path="/proofs" element={<XRampProofs />} />
         <Route path="*" element={<Navigate to="/home" />} />
       </Routes>
     </AppContainer>
