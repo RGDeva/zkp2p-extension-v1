@@ -33,7 +33,7 @@ type ActivityItem = {
 
 export default function XRampHome(): ReactElement {
   const navigate = useNavigate();
-  const { user, logout } = useAuth();
+  const { user, logout, isAuthenticated, login } = useAuth();
   const [showSettings, setShowSettings] = useState(false);
   const settingsRef = useRef<HTMLDivElement>(null);
 
@@ -196,10 +196,16 @@ export default function XRampHome(): ReactElement {
         <WelcomeCard>
           <WelcomeTop>
             <WelcomeSubtitle>P2P Crypto On/Off-Ramp</WelcomeSubtitle>
-            <UserChip>
-              <UserDot />
-              <UserLabel>{displayId}</UserLabel>
-            </UserChip>
+            {isAuthenticated ? (
+              <UserChip>
+                <UserDot />
+                <UserLabel>{displayId}</UserLabel>
+              </UserChip>
+            ) : (
+              <LoginButton onClick={login}>
+                LOGIN
+              </LoginButton>
+            )}
           </WelcomeTop>
           <BalanceRow>
             <BalanceCurrency>$</BalanceCurrency>
@@ -585,6 +591,26 @@ const UserDot = styled.div`
   border-radius: 50%;
   background: ${colors.successGreen};
   flex-shrink: 0;
+`;
+
+const LoginButton = styled.button`
+  padding: 6px 16px;
+  border-radius: 100px;
+  border: 1.5px solid ${colors.foreground};
+  background: transparent;
+  color: ${colors.foreground};
+  font-size: 11px;
+  font-weight: 700;
+  font-family: inherit;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+  white-space: nowrap;
+
+  &:hover {
+    background: ${colors.foreground};
+    color: ${colors.appBackground};
+  }
 `;
 
 const UserLabel = styled.span`

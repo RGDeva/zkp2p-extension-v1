@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useRef, useLayoutEffect, useState, ReactNode } from 'react';
+import ReactDOM from 'react-dom';
 import styled, { keyframes, css } from 'styled-components';
 import { colors } from '@theme/colors';
 
@@ -271,9 +272,62 @@ export const ChevronDown = () => (
 export const DropdownOverlay = styled.div`
   position: fixed;
   inset: 0;
-  z-index: 40;
+  z-index: 9998;
 `;
 
+// FixedDropdownList renders at fixed coordinates (avoids overflow:auto clipping)
+const FixedDropdownListEl = styled.div<{ $top: number; $left: number; $width: number }>`
+  position: fixed;
+  top: ${(p: { $top: number; $left: number; $width: number }) => p.$top}px;
+  left: ${(p: { $top: number; $left: number; $width: number }) => p.$left}px;
+  width: ${(p: { $top: number; $left: number; $width: number }) => p.$width}px;
+  z-index: 9999;
+  background: ${colors.container};
+  border: 1px solid ${colors.border};
+  border-radius: 0.875rem;
+  padding: 0.375rem;
+  max-height: 220px;
+  overflow-y: auto;
+  animation: ${scaleIn} 0.15s ease-out;
+  box-shadow: 0 8px 32px -8px rgba(0,0,0,0.8), 0 0 0 1px rgba(25,197,214,0.08);
+
+  &::-webkit-scrollbar { width: 4px; }
+  &::-webkit-scrollbar-thumb { background: ${colors.border}; border-radius: 4px; }
+`;
+
+interface FixedDropdownProps {
+  anchorRef: React.RefObject<HTMLElement>;
+  onClose: () => void;
+  children: ReactNode;
+  minWidth?: number;
+}
+
+export function FixedDropdown({ anchorRef, onClose, children, minWidth }: FixedDropdownProps) {
+  const [pos, setPos] = useState({ top: 0, left: 0, width: 0 });
+
+  useLayoutEffect(() => {
+    if (anchorRef.current) {
+      const r = anchorRef.current.getBoundingClientRect();
+      setPos({
+        top: r.bottom + 4,
+        left: r.left,
+        width: Math.max(r.width, minWidth ?? 0),
+      });
+    }
+  }, [anchorRef, minWidth]);
+
+  return ReactDOM.createPortal(
+    <>
+      <DropdownOverlay onClick={onClose} />
+      <FixedDropdownListEl $top={pos.top} $left={pos.left} $width={pos.width}>
+        {children}
+      </FixedDropdownListEl>
+    </>,
+    document.body
+  );
+}
+
+// Legacy absolute-positioned list (kept for backward compat)
 export const DropdownList = styled.div`
   position: absolute;
   top: calc(100% + 4px);
