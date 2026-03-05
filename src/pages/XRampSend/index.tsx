@@ -1,11 +1,11 @@
-import React, { useState, ReactElement } from 'react';
+import React, { useState, useRef, ReactElement } from 'react';
 import { useNavigate } from 'react-router';
 import styled from 'styled-components';
 import { colors } from '@theme/colors';
 import {
   PageWrapper, PageTopBar, BackButton, PageTitle, Divider,
   ScrollContent, Card, Label, InputRow, AmountInput,
-  SelectorButton, ChevronDown, DropdownOverlay, DropdownList, DropdownItem,
+  SelectorButton, ChevronDown, FixedDropdown, DropdownItem,
   InfoRow, InfoLabel, InfoValue, PrimaryButton, ButtonText, ErrorRow, DotsLoader, TextInput,
 } from '@components/XRampShared';
 
@@ -24,6 +24,7 @@ export default function XRampSend(): ReactElement {
   const [amount, setAmount] = useState('');
   const [token, setToken] = useState(TOKENS[0]);
   const [showTokens, setShowTokens] = useState(false);
+  const tokenBtnRef = useRef<HTMLButtonElement>(null);
   const [walletAddress, setWalletAddress] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -81,31 +82,28 @@ export default function XRampSend(): ReactElement {
                 style={{ fontSize: '24px' }}
               />
             </InputRow>
-            <SelectorWrapper>
-              <SelectorButton onClick={() => setShowTokens(!showTokens)}>
+            <div style={{ position: 'relative', flexShrink: 0 }}>
+              <SelectorButton ref={tokenBtnRef} onClick={() => setShowTokens(!showTokens)}>
                 <span>{token.icon}</span>
                 <span>{token.symbol}</span>
                 <ChevronDown />
               </SelectorButton>
               {showTokens && (
-                <>
-                  <DropdownOverlay onClick={() => setShowTokens(false)} />
-                  <DropdownList>
-                    {TOKENS.map(t => (
-                      <DropdownItem
-                        key={t.symbol}
-                        $active={t.symbol === token.symbol}
-                        onClick={() => { setToken(t); setShowTokens(false); }}
-                      >
-                        <span>{t.icon}</span>
-                        <span>{t.symbol}</span>
-                        <DropdownSubtext>{t.name}</DropdownSubtext>
-                      </DropdownItem>
-                    ))}
-                  </DropdownList>
-                </>
+                <FixedDropdown anchorRef={tokenBtnRef as React.RefObject<HTMLElement>} onClose={() => setShowTokens(false)} minWidth={160}>
+                  {TOKENS.map(t => (
+                    <DropdownItem
+                      key={t.symbol}
+                      $active={t.symbol === token.symbol}
+                      onClick={() => { setToken(t); setShowTokens(false); }}
+                    >
+                      <span>{t.icon}</span>
+                      <span>{t.symbol}</span>
+                      <DropdownSubtext>{t.name}</DropdownSubtext>
+                    </DropdownItem>
+                  ))}
+                </FixedDropdown>
               )}
-            </SelectorWrapper>
+            </div>
           </SelectorRow>
         </Card>
 
@@ -151,11 +149,6 @@ const SelectorRow = styled.div`
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
-`;
-
-const SelectorWrapper = styled.div`
-  position: relative;
-  flex-shrink: 0;
 `;
 
 const DropdownSubtext = styled.span`
