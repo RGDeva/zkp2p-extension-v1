@@ -133,8 +133,14 @@ interface VenmoStory {
 }
 
 function normalizeAmount(raw: string): number {
-  // Venmo amounts come as "- $50.00" or "+ $50.00" or just "50.00"
+  // Per @zkp2p/providers template responseMatches: amounts are "- $50.00" (debit) or "+ $50.00" (credit)
   return parseFloat(raw.replace(/[^0-9.]/g, '')) || 0;
+}
+
+function isDebitTransaction(raw: string): boolean {
+  // The zkp2p template only matches debit amounts: "amount":"- $<amount>"
+  // We mirror that to ensure we only accept outgoing payments (sender's perspective)
+  return raw.startsWith('- ') || raw.startsWith('-');
 }
 
 function matchTransaction(
@@ -162,8 +168,10 @@ function matchTransaction(
       storyReceiver.includes(receiver) ||
       receiver.includes(storyReceiver);
     const timeMatch = now - storyDate < windowMs;
+    // Per zkp2p template: only accept outgoing (debit) transactions
+    const debitMatch = isDebitTransaction(story.amount || '');
 
-    if (amountMatch && receiverMatch && timeMatch) {
+    if (amountMatch && receiverMatch && timeMatch && debitMatch) {
       return story;
     }
   }
