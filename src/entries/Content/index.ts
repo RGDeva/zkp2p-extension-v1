@@ -106,6 +106,14 @@ chrome.runtime.onMessage.addListener((message) => {
   if (message.action === 'highlight_transaction') {
     addZkp2pTooltip();
   }
+
+  // Forward Venmo proof result from background → web app page
+  if (message.action === 'relay_proof_result') {
+    window.postMessage(
+      { type: 'XRAMP_PROOF_RESULT', payload: message.data },
+      '*',
+    );
+  }
 });
 
 /*

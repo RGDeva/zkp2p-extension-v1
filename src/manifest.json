@@ -27,7 +27,9 @@
     {
       "matches": [
         "https://app.revolut.com/*",
-        "https://zkp2p.xyz/*"
+        "https://zkp2p.xyz/*",
+        "https://xramp-app.vercel.app/*",
+        "http://localhost:5173/*"
       ],
       "js": ["contentScript.bundle.js"],
       "css": ["content.styles.css"]
@@ -49,7 +51,9 @@
     "https://xramp-app.vercel.app/*",
     "http://localhost:5173/*",
     "https://app.revolut.com/*",
-    "https://zkp2p.xyz/*"
+    "https://zkp2p.xyz/*",
+    "https://account.venmo.com/*",
+    "https://xramp-orchestrator.xramp.workers.dev/*"
   ],
   "permissions": [
     "offscreen",

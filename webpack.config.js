@@ -186,7 +186,7 @@ var options = {
     new CleanWebpackPlugin({ verbose: false }),
     new webpack.ProgressPlugin(),
     // expose and write the allowed env vars on the compiled bundle
-    new webpack.EnvironmentPlugin(["NODE_ENV"]),
+    new webpack.EnvironmentPlugin({ NODE_ENV: 'development', XRAMP_ENABLE_VENMO_PROOF: 'false' }),
     new ExtReloader({
       manifest: path.resolve(__dirname, "src/manifest.json")
     }),

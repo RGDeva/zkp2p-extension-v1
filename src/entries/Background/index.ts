@@ -176,6 +176,29 @@ chrome.runtime.onMessage.addListener((message) => {
 
     cache.set(platform, { ...onramperIntent, fiatToSend });
   }
+
+  // Relay a Venmo proof result to the XRamp web app tab via its content script
+  if (message.action === 'xramp_proof_to_tab') {
+    const xrampUrls = [
+      'https://xramp-app.vercel.app/*',
+      'http://localhost:5173/*',
+    ];
+    chrome.tabs.query({}, (tabs) => {
+      for (const tab of tabs) {
+        if (!tab.id || !tab.url) continue;
+        const isXRamp =
+          tab.url.startsWith('https://xramp-app.vercel.app') ||
+          tab.url.startsWith('http://localhost:5173');
+        if (isXRamp) {
+          chrome.tabs.sendMessage(tab.id, {
+            action: 'relay_proof_result',
+            data: message.data,
+          });
+        }
+      }
+      void xrampUrls; // suppress unused warning
+    });
+  }
 });
 
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
