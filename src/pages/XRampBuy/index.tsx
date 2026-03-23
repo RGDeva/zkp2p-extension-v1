@@ -12,6 +12,7 @@ import {
 import { usePrivy } from '@privy-io/react-auth';
 import { useAuth } from '../../contexts/AuthContext';
 import { VENMO_PROOF_ENABLED } from '../../lib/featureFlags';
+import { getProvider } from '../../lib/providers';
 import { orchestratorClient } from '../../lib/orchestratorClient';
 import { verifyVenmoPayment } from '../../lib/venmoProofRunner';
 
@@ -29,22 +30,6 @@ const PAYMENT_METHODS = [
   { id: 'venmo', label: 'Venmo', icon: '📱', live: true },
 ];
 
-const HANDLE_META: Record<string, { label: string; placeholder: string; prefix?: string }> = {
-  venmo:   { label: 'Your Venmo username (for proof)',    placeholder: 'yourname',     prefix: '@' },
-  cashapp: { label: 'Your Cash Tag (for proof)',          placeholder: 'yourcashtag',  prefix: '$' },
-  zelle:   { label: 'Your Zelle email/phone (for proof)', placeholder: 'email or phone' },
-  revolut: { label: 'Your Revolut tag (for proof)',       placeholder: 'yourrevtag',   prefix: '@' },
-  paypal:  { label: 'Your PayPal email (for proof)',      placeholder: 'you@email.com' },
-};
-
-// LP handles — the buyer sends fiat TO these accounts (must match web app BuyComplete.tsx)
-const LP_HANDLES: Record<string, string> = {
-  venmo:   '@primeaj',
-  cashapp: '$primeaj',
-  zelle:   'primeaj@xramp.xyz',
-  revolut: '@primeaj',
-  paypal:  'primeaj@xramp.xyz',
-};
 
 type Step = 'form' | 'pending' | 'verifying' | 'verified' | 'failed';
 
@@ -95,7 +80,7 @@ export default function XRampBuy(): ReactElement {
   const num = parseFloat(amount) || 0;
   const fee = (num * 0.005).toFixed(2);
   const receive = num > 0 ? (num - num * 0.005).toFixed(2) : '0';
-  const handleMeta = method ? HANDLE_META[method.id] ?? null : null;
+  const handleMeta = method ? getProvider(method.id).handleMeta : null;
   const requiresHandle = !!method && method.id !== 'bank';
   const hasHandle = !requiresHandle || handle.trim().length > 0;
   const canContinue = num > 0 && !!method && hasHandle;
@@ -200,7 +185,7 @@ export default function XRampBuy(): ReactElement {
   // ─── Pending / verified / failed screens ─────────────────────────────────
   if (step === 'pending' || step === 'verifying' || step === 'verified' || step === 'failed') {
     const shortId = intentId ? intentId.slice(0, 8) : '—';
-    const lpHandle = method ? (LP_HANDLES[method.id] ?? '(LP handle)') : '(LP handle)';
+    const lpHandle = method ? getProvider(method.id).lpHandle : '(LP handle)';
     const showVerifyBtn = VENMO_PROOF_ENABLED && method?.id === 'venmo' && step === 'pending';
 
     return (

@@ -11,6 +11,7 @@ import {
 import { usePrivy } from '@privy-io/react-auth';
 import { useAuth } from '../../contexts/AuthContext';
 import { orchestratorClient } from '../../lib/orchestratorClient';
+import { getProvider } from '../../lib/providers';
 
 const XRAMP_URL =
   process.env.NODE_ENV === 'production'
@@ -37,13 +38,6 @@ const PAYOUT_METHODS = [
   { id: 'bank', label: 'Bank Transfer', icon: '🏦' },
 ];
 
-const HANDLE_META: Record<string, { label: string; placeholder: string; prefix?: string }> = {
-  venmo:   { label: 'Venmo username',    placeholder: 'yourname',     prefix: '@' },
-  cashapp: { label: 'Cash Tag',          placeholder: 'yourcashtag',  prefix: '$' },
-  zelle:   { label: 'Zelle email/phone', placeholder: 'email or phone' },
-  revolut: { label: 'Revolut tag',       placeholder: 'yourrevtag',   prefix: '@' },
-  paypal:  { label: 'PayPal email',      placeholder: 'you@email.com' },
-};
 
 type Step = 'form' | 'pending';
 
@@ -69,7 +63,7 @@ export default function XRampSell(): ReactElement {
   const price = TOKEN_PRICES[token.symbol] ?? 1;
   const receiveUsd = num > 0 ? (num * price).toFixed(2) : '0.00';
   const fee = (num * price * 0.005).toFixed(2);
-  const handleMeta = method ? HANDLE_META[method.id] ?? null : null;
+  const handleMeta = method ? getProvider(method.id).handleMeta : null;
   const requiresHandle = !!method && method.id !== 'bank';
   const hasHandle = !requiresHandle || handle.trim().length > 0;
   const canContinue = num > 0 && !!method && hasHandle;
