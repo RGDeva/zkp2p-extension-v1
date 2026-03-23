@@ -1,4 +1,4 @@
-import React, { useState, useRef, ReactElement, useCallback } from 'react';
+import React, { useState, useRef, ReactElement, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router';
 import styled from 'styled-components';
 import { colors } from '@theme/colors';
@@ -15,34 +15,35 @@ import { VENMO_PROOF_ENABLED } from '../../lib/featureFlags';
 import { orchestratorClient } from '../../lib/orchestratorClient';
 import { verifyVenmoPayment } from '../../lib/venmoProofRunner';
 
+// Avalanche-native tokens only — these are the only chains XRamp settles today
 const TOKENS = [
-  { symbol: 'AVAX', name: 'Avalanche', icon: '🔺' },
-  { symbol: 'USDC', name: 'USD Coin', icon: '💲' },
-  { symbol: 'USDT', name: 'Tether', icon: '💵' },
-  { symbol: 'ETH', name: 'Ethereum', icon: '⟠' },
-  { symbol: 'BTC.b', name: 'Bitcoin (Bridged)', icon: '₿' },
-  { symbol: 'SOL', name: 'Solana', icon: '◎' },
+  { symbol: 'USDC',  name: 'USD Coin',            icon: 'USDC', chain: 'Avalanche' },
+  { symbol: 'AVAX',  name: 'Avalanche',            icon: 'AVAX', chain: 'Avalanche' },
+  { symbol: 'USDT',  name: 'Tether',               icon: 'USDT', chain: 'Avalanche' },
+  { symbol: 'BTC.b', name: 'Bitcoin (Avalanche)',  icon: 'BTC',  chain: 'Avalanche' },
+  { symbol: 'WAVAX', name: 'Wrapped AVAX',         icon: 'WAVAX', chain: 'Avalanche' },
 ];
 
-const TOKEN_PRICES: Record<string, number> = {
-  AVAX: 28.5, USDC: 1, USDT: 1, ETH: 2650, 'BTC.b': 62000, SOL: 145,
-};
-
+// Only Venmo is live — others shown as coming soon for UI completeness
 const PAYMENT_METHODS = [
-  { id: 'venmo', label: 'Venmo', icon: '📱' },
-  { id: 'cashapp', label: 'Cash App', icon: '💚' },
-  { id: 'zelle', label: 'Zelle', icon: '⚡' },
-  { id: 'revolut', label: 'Revolut', icon: '🔵' },
-  { id: 'paypal', label: 'PayPal', icon: '🅿️' },
-  { id: 'bank', label: 'Bank Transfer', icon: '🏦' },
+  { id: 'venmo', label: 'Venmo', icon: '📱', live: true },
 ];
 
 const HANDLE_META: Record<string, { label: string; placeholder: string; prefix?: string }> = {
-  venmo:   { label: 'Venmo username',    placeholder: 'yourname',     prefix: '@' },
-  cashapp: { label: 'Cash Tag',          placeholder: 'yourcashtag',  prefix: '$' },
-  zelle:   { label: 'Zelle email/phone', placeholder: 'email or phone' },
-  revolut: { label: 'Revolut tag',       placeholder: 'yourrevtag',   prefix: '@' },
-  paypal:  { label: 'PayPal email',      placeholder: 'you@email.com' },
+  venmo:   { label: 'Your Venmo username (for proof)',    placeholder: 'yourname',     prefix: '@' },
+  cashapp: { label: 'Your Cash Tag (for proof)',          placeholder: 'yourcashtag',  prefix: '$' },
+  zelle:   { label: 'Your Zelle email/phone (for proof)', placeholder: 'email or phone' },
+  revolut: { label: 'Your Revolut tag (for proof)',       placeholder: 'yourrevtag',   prefix: '@' },
+  paypal:  { label: 'Your PayPal email (for proof)',      placeholder: 'you@email.com' },
+};
+
+// LP handles — the buyer sends fiat TO these accounts (must match web app BuyComplete.tsx)
+const LP_HANDLES: Record<string, string> = {
+  venmo:   '@primeaj',
+  cashapp: '$primeaj',
+  zelle:   'primeaj@xramp.xyz',
+  revolut: '@primeaj',
+  paypal:  'primeaj@xramp.xyz',
 };
 
 type Step = 'form' | 'pending' | 'verifying' | 'verified' | 'failed';
@@ -58,7 +59,7 @@ export default function XRampBuy(): ReactElement {
   const { user } = useAuth();
 
   const [amount, setAmount] = useState('');
-  const [token, setToken] = useState(TOKENS[0]);
+  const [token, setToken] = useState(TOKENS[0]); // USDC is index 0
   const [showTokens, setShowTokens] = useState(false);
   const [method, setMethod] = useState<typeof PAYMENT_METHODS[0] | null>(null);
   const [showMethods, setShowMethods] = useState(false);
@@ -74,10 +75,26 @@ export default function XRampBuy(): ReactElement {
   const [proofHash, setProofHash] = useState<string | null>(null);
   const [proofReason, setProofReason] = useState<string | null>(null);
 
+  // Load saved handle from localStorage on mount
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('xramp_buyer_handle');
+      if (saved) setHandle(h => h || saved);
+    } catch { /* ignore */ }
+  }, []);
+
+  // When method changes, try to prefill from localStorage
+  useEffect(() => {
+    if (!method) return;
+    try {
+      const saved = localStorage.getItem('xramp_buyer_handle');
+      if (saved) setHandle(h => h || saved);
+    } catch { /* ignore */ }
+  }, [method]);
+
   const num = parseFloat(amount) || 0;
-  const price = TOKEN_PRICES[token.symbol] ?? 1;
-  const receive = num > 0 ? (num / price).toFixed(6) : '0';
   const fee = (num * 0.005).toFixed(2);
+  const receive = num > 0 ? (num - num * 0.005).toFixed(2) : '0';
   const handleMeta = method ? HANDLE_META[method.id] ?? null : null;
   const requiresHandle = !!method && method.id !== 'bank';
   const hasHandle = !requiresHandle || handle.trim().length > 0;
@@ -91,6 +108,9 @@ export default function XRampBuy(): ReactElement {
     setSubmitting(true);
     setError(null);
     try {
+      if (handle.trim()) {
+        try { localStorage.setItem('xramp_buyer_handle', handle.trim()); } catch { /* ignore */ }
+      }
       const token_ = await getAccessToken().catch(() => null);
       const { intent } = await orchestratorClient.createOnrampIntent({
         userId: getUserId(),
@@ -134,6 +154,27 @@ export default function XRampBuy(): ReactElement {
           // Non-fatal — proof is stored locally even if backend call fails
         }
 
+        // Persist proof to chrome.storage so XRampProofs page can display it
+        try {
+          const PROOF_KEY = 'xramp_proofs';
+          chrome.storage.local.get([PROOF_KEY], (existing) => {
+            const prev: unknown[] = existing[PROOF_KEY] || [];
+            const entry = {
+              intentId,
+              providerId: result.providerId,
+              proofHash: result.proofHash,
+              verified: true,
+              amount: result.extracted?.amount,
+              receiverUsername: result.extracted?.receiverUsername,
+              date: result.extracted?.date,
+              storedAt: new Date().toISOString(),
+            };
+            chrome.storage.local.set({ [PROOF_KEY]: [...prev, entry] });
+          });
+        } catch {
+          // Non-fatal
+        }
+
         // Relay to XRamp web app tab
         try {
           chrome.runtime.sendMessage({
@@ -159,7 +200,7 @@ export default function XRampBuy(): ReactElement {
   // ─── Pending / verified / failed screens ─────────────────────────────────
   if (step === 'pending' || step === 'verifying' || step === 'verified' || step === 'failed') {
     const shortId = intentId ? intentId.slice(0, 8) : '—';
-    const venmoHandle = handle.trim() ? `@${handle.trim().replace(/^@/, '')}` : '(your handle)';
+    const lpHandle = method ? (LP_HANDLES[method.id] ?? '(LP handle)') : '(LP handle)';
     const showVerifyBtn = VENMO_PROOF_ENABLED && method?.id === 'venmo' && step === 'pending';
 
     return (
@@ -206,19 +247,48 @@ export default function XRampBuy(): ReactElement {
           {/* Payment instructions */}
           {(step === 'pending' || step === 'failed') && (
             <InstructionsCard>
-              <InstructionsTitle>How to pay</InstructionsTitle>
-              <InstructionRow>
-                <InstructionNumber>1</InstructionNumber>
-                <InstructionText>Send <strong>${amount}</strong> via <strong>{method?.label}</strong></InstructionText>
-              </InstructionRow>
-              <InstructionRow>
-                <InstructionNumber>2</InstructionNumber>
-                <InstructionText>To: <strong>{venmoHandle}</strong></InstructionText>
-              </InstructionRow>
-              <InstructionRow>
-                <InstructionNumber>3</InstructionNumber>
-                <InstructionText>Memo: <MemoText>XRAMP-{shortId}</MemoText></InstructionText>
-              </InstructionRow>
+              <InstructionsTitle>Payment instructions</InstructionsTitle>
+
+              <PaymentField>
+                <PaymentFieldLabel>Amount</PaymentFieldLabel>
+                <PaymentFieldRow>
+                  <PaymentFieldValue>${amount} USD</PaymentFieldValue>
+                  <CopyButton onClick={() => navigator.clipboard.writeText(amount).catch(() => {})}>Copy</CopyButton>
+                </PaymentFieldRow>
+              </PaymentField>
+
+              <PaymentField>
+                <PaymentFieldLabel>Send to ({method?.label})</PaymentFieldLabel>
+                <PaymentFieldRow>
+                  <PaymentFieldValue style={{ color: colors.primary }}>{lpHandle}</PaymentFieldValue>
+                  <CopyButton onClick={() => navigator.clipboard.writeText(lpHandle).catch(() => {})}>Copy</CopyButton>
+                </PaymentFieldRow>
+              </PaymentField>
+
+              <PaymentField>
+                <PaymentFieldLabel>Memo (required)</PaymentFieldLabel>
+                <PaymentFieldRow>
+                  <MemoText>XRAMP-{shortId}</MemoText>
+                  <CopyButton onClick={() => navigator.clipboard.writeText(`XRAMP-${shortId}`).catch(() => {})}>Copy</CopyButton>
+                </PaymentFieldRow>
+              </PaymentField>
+
+              {method?.id === 'venmo' && (
+                <VenmoDeepLink
+                  onClick={() => {
+                    const handle = lpHandle.replace('@', '');
+                    const note = encodeURIComponent(`XRAMP-${shortId}`);
+                    const amt = encodeURIComponent(amount);
+                    chrome.tabs.create({ url: `https://venmo.com/${handle}?txn=pay&amount=${amt}&note=${note}` });
+                  }}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                    <polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" />
+                  </svg>
+                  Open Venmo &amp; Pay
+                </VenmoDeepLink>
+              )}
             </InstructionsCard>
           )}
 
@@ -303,6 +373,48 @@ export default function XRampBuy(): ReactElement {
           </InputRow>
         </Card>
 
+        {/* Payment Method — between pay and receive */}
+        <Card>
+          <Label>Payment method</Label>
+          <div>
+            <SelectorButton
+              ref={methodBtnRef}
+              onClick={() => setShowMethods(!showMethods)}
+              style={{ width: '100%', justifyContent: 'space-between' }}
+            >
+              <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                {method ? (
+                  <><span>{method.icon}</span><span>{method.label}</span>
+                    <LiveBadge>Live</LiveBadge>
+                  </>
+                ) : (
+                  <span style={{ color: colors.mutedForeground }}>Select method</span>
+                )}
+              </span>
+              <ChevronDown />
+            </SelectorButton>
+            {showMethods && (
+              <FixedDropdown anchorRef={methodBtnRef as React.RefObject<HTMLElement>} onClose={() => setShowMethods(false)}>
+                {PAYMENT_METHODS.map(m => (
+                  <DropdownItem
+                    key={m.id}
+                    $active={method?.id === m.id}
+                    onClick={() => {
+                      setMethod(m);
+                      setHandle('');
+                      setShowMethods(false);
+                    }}
+                  >
+                    <span>{m.icon}</span>
+                    <span>{m.label}</span>
+                    {m.live && <LiveBadge style={{ marginLeft: 'auto' }}>Live</LiveBadge>}
+                  </DropdownItem>
+                ))}
+              </FixedDropdown>
+            )}
+          </div>
+        </Card>
+
         {/* Token Selector */}
         <Card>
           <Label>You receive</Label>
@@ -333,44 +445,6 @@ export default function XRampBuy(): ReactElement {
           </SelectorRow>
         </Card>
 
-        {/* Payment Method Selector */}
-        <Card>
-          <Label>Payment method</Label>
-          <div>
-            <SelectorButton
-              ref={methodBtnRef}
-              onClick={() => setShowMethods(!showMethods)}
-              style={{ width: '100%', justifyContent: 'space-between' }}
-            >
-              <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                {method ? (
-                  <><span>{method.icon}</span><span>{method.label}</span></>
-                ) : (
-                  <span style={{ color: colors.mutedForeground }}>Select method</span>
-                )}
-              </span>
-              <ChevronDown />
-            </SelectorButton>
-            {showMethods && (
-              <FixedDropdown anchorRef={methodBtnRef as React.RefObject<HTMLElement>} onClose={() => setShowMethods(false)}>
-                {PAYMENT_METHODS.map(m => (
-                  <DropdownItem
-                    key={m.id}
-                    $active={method?.id === m.id}
-                    onClick={() => {
-                      setMethod(m);
-                      setHandle('');
-                      setShowMethods(false);
-                    }}
-                  >
-                    <span>{m.icon}</span>
-                    <span>{m.label}</span>
-                  </DropdownItem>
-                ))}
-              </FixedDropdown>
-            )}
-          </div>
-        </Card>
 
         {/* Handle Input */}
         {handleMeta && (
@@ -385,22 +459,36 @@ export default function XRampBuy(): ReactElement {
           </Card>
         )}
 
-        {/* Quote Info */}
+        {/* Best Quote card */}
         {num > 0 && (
-          <Card style={{ padding: '0.75rem 1.25rem' }}>
+          <BestQuoteCard>
+            <BestQuoteHeader>
+              <BestQuoteBadge>✦ Best Quote</BestQuoteBadge>
+              <ChainBadge>Avalanche · Fuji testnet</ChainBadge>
+            </BestQuoteHeader>
+            <BestQuoteProvider>
+              <ProviderIcon>X</ProviderIcon>
+              <ProviderName>XRamp LP</ProviderName>
+              <ProviderRoute>{method?.label ?? 'Venmo'} → USDC</ProviderRoute>
+            </BestQuoteProvider>
+            <BestQuoteDivider />
             <InfoRow>
               <InfoLabel>Rate</InfoLabel>
-              <InfoValue>1 {token.symbol} = ${price.toLocaleString()}</InfoValue>
+              <InfoValue>1 USD = 1.00 USDC</InfoValue>
             </InfoRow>
             <InfoRow>
-              <InfoLabel>Fee (0.5%)</InfoLabel>
-              <InfoValue>${fee}</InfoValue>
+              <InfoLabel>XRamp fee (0.5%)</InfoLabel>
+              <InfoValue>−${fee}</InfoValue>
             </InfoRow>
             <InfoRow>
-              <InfoLabel>You get</InfoLabel>
+              <InfoLabel>You receive</InfoLabel>
               <InfoValue style={{ color: colors.primary, fontWeight: 700 }}>{receive} {token.symbol}</InfoValue>
             </InfoRow>
-          </Card>
+            <InfoRow>
+              <InfoLabel>Settlement</InfoLabel>
+              <InfoValue style={{ color: colors.mutedForeground, fontSize: '11px' }}>Escrow → Avalanche Fuji</InfoValue>
+            </InfoRow>
+          </BestQuoteCard>
         )}
 
         {/* Error */}
@@ -502,32 +590,159 @@ const InstructionsTitle = styled.span`
   margin-bottom: 0.25rem;
 `;
 
-const InstructionRow = styled.div`
+const PaymentField = styled.div`
   display: flex;
-  align-items: flex-start;
-  gap: 0.625rem;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid ${colors.border};
+  &:last-of-type { border-bottom: none; }
 `;
 
-const InstructionNumber = styled.div`
+const PaymentFieldLabel = styled.span`
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.6px;
+  color: ${colors.mutedForeground};
+  text-transform: uppercase;
+`;
+
+const PaymentFieldRow = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+`;
+
+const PaymentFieldValue = styled.span`
+  font-size: 14px;
+  font-weight: 600;
+  color: ${colors.foreground};
+`;
+
+const CopyButton = styled.button`
+  flex-shrink: 0;
+  padding: 0.2rem 0.6rem;
+  border-radius: 0.375rem;
+  border: 1px solid ${colors.border};
+  background: transparent;
+  color: ${colors.mutedForeground};
+  font-size: 11px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  &:hover { background: ${colors.primaryMuted}; color: ${colors.primary}; border-color: ${colors.primary}; }
+`;
+
+const VenmoDeepLink = styled.button`
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
+  gap: 0.5rem;
+  width: 100%;
+  margin-top: 0.625rem;
+  padding: 0.625rem 1rem;
+  border-radius: 0.75rem;
+  border: 1.5px solid ${colors.primary};
   background: ${colors.primaryMuted};
   color: ${colors.primary};
-  font-size: 11px;
-  font-weight: 700;
-  flex-shrink: 0;
-  margin-top: 1px;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s;
+  &:hover { background: rgba(25,197,214,0.18); }
 `;
 
-const InstructionText = styled.span`
+// ---------------------------------------------------------------------------
+// Best Quote card
+// ---------------------------------------------------------------------------
+
+const BestQuoteCard = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 1rem 1.125rem;
+  border-radius: 1rem;
+  background: ${colors.card};
+  border: 1px solid ${colors.primary}33;
+  animation: ${fadeIn} 0.3s ease-out both;
+`;
+
+const BestQuoteHeader = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+`;
+
+const BestQuoteBadge = styled.span`
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  color: ${colors.primary};
+  text-transform: uppercase;
+`;
+
+const ChainBadge = styled.span`
+  font-size: 10px;
+  font-weight: 600;
+  color: ${colors.mutedForeground};
+  background: ${colors.primaryMuted};
+  border: 1px solid ${colors.primary}33;
+  padding: 0.15rem 0.5rem;
+  border-radius: 99px;
+`;
+
+const BestQuoteProvider = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.375rem 0;
+`;
+
+const ProviderIcon = styled.div`
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  background: ${colors.primary};
+  color: #000;
   font-size: 13px;
-  color: ${colors.subtitleColor};
-  line-height: 1.4;
-  strong { color: ${colors.foreground}; font-weight: 600; }
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+`;
+
+const ProviderName = styled.span`
+  font-size: 13px;
+  font-weight: 700;
+  color: ${colors.foreground};
+`;
+
+const ProviderRoute = styled.span`
+  font-size: 11px;
+  color: ${colors.mutedForeground};
+  margin-left: auto;
+`;
+
+const BestQuoteDivider = styled.div`
+  height: 1px;
+  background: ${colors.border};
+  margin: 0.125rem 0;
+`;
+
+const LiveBadge = styled.span`
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: #22c55e;
+  background: rgba(34,197,94,0.12);
+  border: 1px solid rgba(34,197,94,0.25);
+  padding: 0.1rem 0.4rem;
+  border-radius: 99px;
 `;
 
 const MemoText = styled.code`

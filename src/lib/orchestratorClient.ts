@@ -67,6 +67,24 @@ export const orchestratorClient = {
     }, authToken);
   },
 
+  async createOfframpIntent(payload: {
+    userId: string;
+    amount: string;
+    sourceAsset: string;
+    targetAsset: string;
+    rail?: string;
+    paymentHandle?: string;
+  }, authToken?: string): Promise<{ intent: OrchestratorIntent }> {
+    return apiFetch('/intents', {
+      method: 'POST',
+      body: JSON.stringify({ ...payload, type: 'OFFRAMP' }),
+    }, authToken);
+  },
+
+  async listIntents(authToken?: string): Promise<{ intents: OrchestratorIntent[] }> {
+    return apiFetch('/intents', {}, authToken);
+  },
+
   async transitionIntent(intentId: string, toState: string, authToken?: string): Promise<{ intent: OrchestratorIntent }> {
     return apiFetch(`/intents/${intentId}/state`, {
       method: 'PATCH',

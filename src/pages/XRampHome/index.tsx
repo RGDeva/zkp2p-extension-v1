@@ -1,9 +1,11 @@
-import React, { ReactElement, useState, useRef, useEffect } from 'react';
+import React, { ReactElement, useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router';
 import styled, { keyframes } from 'styled-components';
 import { colors } from '@theme/colors';
 import { fadeIn, scaleIn, shimmerSweep, AnimatedGradientSpan } from '@components/XRampShared';
 import { useAuth, truncateAddress } from '../../contexts/AuthContext';
+import { usePrivy } from '@privy-io/react-auth';
+import { orchestratorClient, OrchestratorIntent } from '../../lib/orchestratorClient';
 
 import xrampLogo from '../../assets/img/xramp-logo-full.png';
 
@@ -12,14 +14,11 @@ const XRAMP_URL =
     ? 'https://xramp-app.vercel.app'
     : 'http://localhost:5173';
 
-const VERSION = '0.1.0';
+const FUJI_RPC = 'https://api.avax-test.network/ext/bc/C/rpc';
+const USDC_CONTRACT = '0xb2F4Ca689C54bCe4effcf8A12Cb02089C933C5c6';
+const USDC_BALANCE_ABI_FRAGMENT = '0x70a08231'; // balanceOf(address)
 
-// Demo activity — replace with real data from orchestrator later
-const DEMO_ACTIVITY: ActivityItem[] = [
-  { id: '1', type: 'buy', amount: '50.00 USD', result: '49.14 USDC', status: 'completed', date: '2/25/2026', method: 'venmo' },
-  { id: '2', type: 'sell', amount: '0.5 AVAX', result: '14.25 USD', status: 'pending', date: '2/26/2026', method: 'zelle' },
-  { id: '3', type: 'buy', amount: '100.00 USD', result: '0.038 ETH', status: 'cancelled', date: '2/24/2026', method: 'cashapp' },
-];
+const VERSION = '0.1.0';
 
 type ActivityItem = {
   id: string;
@@ -31,16 +30,79 @@ type ActivityItem = {
   method: string;
 };
 
+function intentToActivity(intent: OrchestratorIntent): ActivityItem {
+  const isBuy = intent.type === 'ONRAMP';
+  const state = intent.state.toLowerCase();
+  let status: ActivityItem['status'] = 'pending';
+  if (state === 'complete' || state === 'completed') status = 'completed';
+  else if (state === 'cancelled' || state === 'failed' || state === 'expired') status = 'cancelled';
+  else status = 'pending';
+  const date = new Date(intent.createdAt).toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric' });
+  return {
+    id: intent.id,
+    type: isBuy ? 'buy' : 'sell',
+    amount: `${intent.amount} ${intent.sourceAsset}`,
+    result: `${intent.targetAsset}`,
+    status,
+    date,
+    method: intent.rail || 'unknown',
+  };
+}
+
+async function fetchUsdcBalance(walletAddress: string): Promise<string> {
+  try {
+    const padded = walletAddress.replace('0x', '').padStart(64, '0');
+    const body = JSON.stringify({
+      jsonrpc: '2.0', id: 1, method: 'eth_call',
+      params: [{ to: USDC_CONTRACT, data: `${USDC_BALANCE_ABI_FRAGMENT}${padded}` }, 'latest'],
+    });
+    const res = await fetch(FUJI_RPC, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body });
+    const json = await res.json() as { result?: string };
+    if (!json.result || json.result === '0x') return '0.00';
+    const raw = parseInt(json.result, 16);
+    return (raw / 1e6).toFixed(2);
+  } catch {
+    return '0.00';
+  }
+}
+
 export default function XRampHome(): ReactElement {
   const navigate = useNavigate();
   const { user, logout, isAuthenticated, login } = useAuth();
+  const { getAccessToken } = usePrivy();
   const [showSettings, setShowSettings] = useState(false);
   const settingsRef = useRef<HTMLDivElement>(null);
+  const [activity, setActivity] = useState<ActivityItem[]>([]);
+  const [activityLoading, setActivityLoading] = useState(false);
+  const [balance, setBalance] = useState<string | null>(null);
 
   const displayId = user?.email ||
     (user?.walletAddress ? truncateAddress(user.walletAddress) : null) ||
     (user?.embeddedWalletAddress ? truncateAddress(user.embeddedWalletAddress) : null) ||
     'Account';
+
+  const walletAddress = user?.walletAddress || user?.embeddedWalletAddress || null;
+
+  const loadActivity = useCallback(async () => {
+    if (!isAuthenticated) return;
+    setActivityLoading(true);
+    try {
+      const token_ = await getAccessToken().catch(() => null);
+      const { intents } = await orchestratorClient.listIntents(token_ ?? undefined);
+      setActivity(intents.slice(0, 10).map(intentToActivity));
+    } catch {
+      setActivity([]);
+    } finally {
+      setActivityLoading(false);
+    }
+  }, [isAuthenticated, getAccessToken]);
+
+  useEffect(() => { loadActivity(); }, [loadActivity]);
+
+  useEffect(() => {
+    if (!walletAddress) { setBalance(null); return; }
+    fetchUsdcBalance(walletAddress).then(setBalance);
+  }, [walletAddress]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -143,7 +205,7 @@ export default function XRampHome(): ReactElement {
                 </SettingsItemText>
               </SettingsItem>
 
-              <SettingsItem onClick={() => chrome.tabs.create({ url: 'https://github.com/RGDeva/zkp2p-extension-v1/issues' })}>
+              <SettingsItem onClick={() => chrome.tabs.create({ url: 'https://github.com/RGDeva/xramp-extension/issues' })}>
                 {/* Alert circle */}
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
@@ -208,9 +270,22 @@ export default function XRampHome(): ReactElement {
             )}
           </WelcomeTop>
           <BalanceRow>
-            <BalanceCurrency>$</BalanceCurrency>
-            <BalanceInteger>0</BalanceInteger>
-            <BalanceDecimal>.00</BalanceDecimal>
+            {balance !== null ? (
+              <>
+                <BalanceCurrency>$</BalanceCurrency>
+                <BalanceInteger>{balance.split('.')[0]}</BalanceInteger>
+                <BalanceDecimal>.{balance.split('.')[1] ?? '00'}</BalanceDecimal>
+                <BalanceAsset>USDC</BalanceAsset>
+              </>
+            ) : isAuthenticated ? (
+              <BalanceLoading>···</BalanceLoading>
+            ) : (
+              <>
+                <BalanceCurrency>$</BalanceCurrency>
+                <BalanceInteger>0</BalanceInteger>
+                <BalanceDecimal>.00</BalanceDecimal>
+              </>
+            )}
           </BalanceRow>
         </WelcomeCard>
 
@@ -267,9 +342,27 @@ export default function XRampHome(): ReactElement {
         </ProofsCard>
 
         {/* Activity Section */}
-        <SectionHeader>ACTIVITY</SectionHeader>
+        <SectionHeaderRow>
+          <SectionHeader>ACTIVITY</SectionHeader>
+          {isAuthenticated && (
+            <RefreshBtn onClick={loadActivity} disabled={activityLoading}>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="23 4 23 10 17 10" /><polyline points="1 20 1 14 7 14" />
+                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+              </svg>
+            </RefreshBtn>
+          )}
+        </SectionHeaderRow>
 
-        {DEMO_ACTIVITY.length === 0 ? (
+        {activityLoading ? (
+          <ActivityLoadingWrap>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={colors.primary} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ animation: 'spin 1s linear infinite' }}>
+              <polyline points="23 4 23 10 17 10" /><polyline points="1 20 1 14 7 14" />
+              <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+            </svg>
+            <span>Loading…</span>
+          </ActivityLoadingWrap>
+        ) : activity.length === 0 ? (
           <EmptyActivity>
             <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke={colors.mutedForeground} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="12" cy="12" r="10" /><line x1="4.93" y1="4.93" x2="19.07" y2="19.07" />
@@ -279,7 +372,7 @@ export default function XRampHome(): ReactElement {
           </EmptyActivity>
         ) : (
           <ActivityList>
-            {DEMO_ACTIVITY.map((item, i) => (
+            {activity.map((item, i) => (
               <ActivityRow key={item.id} style={{ animationDelay: `${0.3 + i * 0.06}s` }}>
                 <ActivityIconBadge style={{ background: statusBg(item.status) }}>
                   {typeIcon(item.type)}
@@ -795,13 +888,65 @@ const ProofsChevron = styled.div`
 // Activity Section
 // ---------------------------------------------------------------------------
 
+const BalanceAsset = styled.span`
+  font-size: 13px;
+  font-weight: 600;
+  color: ${colors.primary};
+  align-self: flex-end;
+  margin-bottom: 4px;
+  margin-left: 6px;
+`;
+
+const BalanceLoading = styled.span`
+  font-size: 28px;
+  font-weight: 700;
+  color: ${colors.subtitleColor};
+  letter-spacing: 4px;
+`;
+
+const SectionHeaderRow = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 0.25rem 0 0;
+  animation: ${fadeIn} 0.5s ease-out 0.24s both;
+`;
+
 const SectionHeader = styled.h3`
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 1px;
   color: ${colors.mutedForeground};
-  margin: 0.25rem 0 0;
-  animation: ${fadeIn} 0.5s ease-out 0.24s both;
+  margin: 0;
+`;
+
+const RefreshBtn = styled.button`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 0.375rem;
+  background: transparent;
+  color: ${colors.mutedForeground};
+  cursor: pointer;
+  transition: color 0.15s;
+  padding: 0;
+  &:hover { color: ${colors.primary}; }
+  &:disabled { opacity: 0.4; cursor: default; }
+`;
+
+const ActivityLoadingWrap = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 1.25rem 1rem;
+  border-radius: 1rem;
+  background: ${colors.card};
+  border: 1px solid ${colors.border};
+  font-size: 13px;
+  color: ${colors.mutedForeground};
 `;
 
 const EmptyActivity = styled.div`

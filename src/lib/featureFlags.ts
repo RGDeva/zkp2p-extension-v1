@@ -1,5 +1,5 @@
 // Feature flags for XRamp extension — controlled via env vars at build time.
-// Set XRAMP_ENABLE_VENMO_PROOF=true when building to enable the Venmo proof beta.
+// Defaults to true; set XRAMP_ENABLE_VENMO_PROOF=false to disable.
 
 export const VENMO_PROOF_ENABLED =
-  process.env.XRAMP_ENABLE_VENMO_PROOF === 'true';
+  process.env.XRAMP_ENABLE_VENMO_PROOF !== 'false';

@@ -1,4 +1,4 @@
-import React, { ReactElement } from 'react';
+import React, { ReactElement, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router';
 import styled from 'styled-components';
 import { colors } from '@theme/colors';
@@ -11,45 +11,17 @@ import { fadeIn } from '@components/XRampShared';
 // ---------------------------------------------------------------------------
 // What are Proofs?
 //
-// XRamp uses TLS Notarization (TLSNotary) to create zero-knowledge proofs
-// of fiat payments. When you pay someone through Venmo, Zelle, CashApp, etc.,
-// the extension captures the HTTPS response from the payment provider, sends
-// it to a notary server, and generates a cryptographic proof that the payment
-// occurred — without revealing the full transaction details.
+// XRamp verifies fiat payments by reading your Venmo transaction history
+// (using your active session cookies) and matching the payment by amount,
+// receiver, and time window. A SHA-256 proof hash is computed over the
+// matched transaction data and submitted to the XRamp orchestrator.
 //
-// This proof is then submitted on-chain to release crypto to the buyer.
-// Neither party needs to trust the other: the proof mathematically verifies
-// the fiat payment happened. Proofs are stored locally in the extension and
-// can be viewed, verified, or deleted from this page.
+// This hash is used on-chain to trigger escrow release — no manual admin
+// approval needed once your proof is verified. Proofs are stored locally
+// in the extension and can be viewed or cleared from this page.
 // ---------------------------------------------------------------------------
 
-// Demo proofs — will be replaced with real data from history reducer
-const DEMO_PROOFS: ProofItem[] = [
-  {
-    id: 'p1',
-    subject: 'Proof of Venmo payment',
-    detail: 'Sent $50.00 to @alice',
-    status: 'success',
-    date: '2/25/2026',
-    requestType: 'transfer',
-  },
-  {
-    id: 'p2',
-    subject: 'Proof of Zelle transfer',
-    detail: 'Sent $100.00 to john@email.com',
-    status: 'pending',
-    date: '2/26/2026',
-    requestType: 'transfer',
-  },
-  {
-    id: 'p3',
-    subject: 'Proof of CashApp payment',
-    detail: 'Sent $25.00 to $bob',
-    status: 'error',
-    date: '2/24/2026',
-    requestType: 'transfer',
-  },
-];
+const PROOF_STORAGE_KEY = 'xramp_proofs';
 
 type ProofItem = {
   id: string;
@@ -60,8 +32,43 @@ type ProofItem = {
   requestType: string;
 };
 
+interface StoredProof {
+  intentId: string;
+  providerId: string;
+  proofHash: string;
+  verified: boolean;
+  amount?: string;
+  receiverUsername?: string;
+  date?: string;
+  storedAt: string;
+}
+
+function storedProofToItem(p: StoredProof, idx: number): ProofItem {
+  const provider = p.providerId.charAt(0).toUpperCase() + p.providerId.slice(1);
+  const to = p.receiverUsername ? ` to ${p.receiverUsername}` : '';
+  const amt = p.amount ? ` ${p.amount}` : '';
+  return {
+    id: p.intentId || `proof-${idx}`,
+    subject: `Proof of ${provider} payment`,
+    detail: `Sent${amt}${to}`,
+    status: p.verified ? 'success' : 'error',
+    date: new Date(p.storedAt).toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric' }),
+    requestType: 'transfer',
+  };
+}
+
 export default function XRampProofs(): ReactElement {
   const navigate = useNavigate();
+  const [proofs, setProofs] = useState<ProofItem[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    chrome.storage.local.get([PROOF_STORAGE_KEY], (result) => {
+      const stored: StoredProof[] = result[PROOF_STORAGE_KEY] || [];
+      setProofs(stored.map(storedProofToItem).reverse());
+      setLoading(false);
+    });
+  }, []);
 
   const statusIcon = (s: ProofItem['status']) => {
     switch (s) {
@@ -130,9 +137,7 @@ export default function XRampProofs(): ReactElement {
           <ExplainerText>
             <ExplainerTitle>What are proofs?</ExplainerTitle>
             <ExplainerBody>
-              When you make a fiat payment (Venmo, Zelle, etc.), XRamp generates a 
-              <strong> zero-knowledge proof</strong> that the payment occurred using TLS notarization. 
-              This proof is submitted on-chain to release crypto — no trust required between parties.
+              When you pay via Venmo, XRamp reads your transaction history, matches the payment by amount + receiver + time, and generates a <strong>cryptographic proof hash</strong>. This hash is submitted to the orchestrator to trigger escrow release — no screenshots or manual steps needed.
             </ExplainerBody>
           </ExplainerText>
         </ExplainerCard>
@@ -140,7 +145,11 @@ export default function XRampProofs(): ReactElement {
         {/* Proofs List */}
         <SectionLabel>STORED PROOFS</SectionLabel>
 
-        {DEMO_PROOFS.length === 0 ? (
+        {loading ? (
+          <EmptyCard>
+            <EmptyText>Loading proofs…</EmptyText>
+          </EmptyCard>
+        ) : proofs.length === 0 ? (
           <EmptyCard>
             <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke={colors.mutedForeground} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
               <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
@@ -150,7 +159,7 @@ export default function XRampProofs(): ReactElement {
           </EmptyCard>
         ) : (
           <ProofsList>
-            {DEMO_PROOFS.map((proof, i) => (
+            {proofs.map((proof: ProofItem, i: number) => (
               <ProofRow key={proof.id} style={{ animationDelay: `${0.1 + i * 0.06}s` }}>
                 <ProofLeft>
                   {statusIcon(proof.status)}
@@ -176,25 +185,25 @@ export default function XRampProofs(): ReactElement {
           <StepItem $index={0}>
             <StepNumber>1</StepNumber>
             <StepText>
-              <strong>Payment captured</strong> — Extension intercepts the HTTPS response from your payment app
+              <strong>Session read</strong> — Extension reads your Venmo transaction history using your active login session
             </StepText>
           </StepItem>
           <StepItem $index={1}>
             <StepNumber>2</StepNumber>
             <StepText>
-              <strong>Notarization</strong> — Response is sent to a TLS notary server which co-signs the data
+              <strong>Payment matched</strong> — Finds the transaction matching amount, receiver handle, and 30-min time window
             </StepText>
           </StepItem>
           <StepItem $index={2}>
             <StepNumber>3</StepNumber>
             <StepText>
-              <strong>ZK proof generated</strong> — A zero-knowledge proof is created that verifies the payment without revealing details
+              <strong>Proof hash computed</strong> — SHA-256 hash of the matched transaction data is generated locally
             </StepText>
           </StepItem>
           <StepItem $index={3}>
             <StepNumber>4</StepNumber>
             <StepText>
-              <strong>On-chain settlement</strong> — Proof is submitted on-chain to release crypto to the buyer
+              <strong>Escrow release</strong> — Proof hash is submitted to XRamp orchestrator, triggering on-chain settlement
             </StepText>
           </StepItem>
         </StepsList>
