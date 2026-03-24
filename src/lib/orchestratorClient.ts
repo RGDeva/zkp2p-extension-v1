@@ -49,6 +49,13 @@ export const orchestratorClient = {
     targetAsset: string;
     rail?: string;
     paymentHandle?: string;
+    destination?: {
+      chainId: number;
+      token: string;
+      recipientAddress: string;
+      app?: string;
+      memo?: string;
+    };
   }, authToken?: string): Promise<{ intent: OrchestratorIntent }> {
     return apiFetch('/intents', {
       method: 'POST',

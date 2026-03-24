@@ -63,19 +63,43 @@ export default function XRampBuy(): ReactElement {
   const [proofHash, setProofHash] = useState<string | null>(null);
   const [proofReason, setProofReason] = useState<string | null>(null);
 
+  // SDK destination (rich object from web app)
+  const [sdkDestination, setSdkDestination] = useState<{
+    chainId: number;
+    token: string;
+    recipientAddress: string;
+    app?: string;
+    memo?: string;
+  } | null>(null);
+  const [sdkPrefilled, setSdkPrefilled] = useState(false);
+
   // SDK prefill: listen for navigate messages with context from background
   useEffect(() => {
-    const handler = (message: { action?: string; route?: string; context?: Record<string, string> }) => {
+    const handler = (message: { action?: string; route?: string; context?: Record<string, unknown> }) => {
       if (message.action === 'navigate' && message.route === '/buy' && message.context) {
-        const ctx = message.context;
-        if (ctx.amount) setAmount(ctx.amount);
+        const ctx = message.context as Record<string, unknown>;
+        if (ctx.amount) setAmount(String(ctx.amount));
         if (ctx.provider) {
           const found = PAYMENT_METHODS.find(m => m.id === ctx.provider);
           if (found) setMethod(found);
         }
-        if (ctx.destination) {
-          try { localStorage.setItem('xramp_sdk_destination', ctx.destination); } catch { /* ignore */ }
+        if (ctx.destination && typeof ctx.destination === 'object') {
+          const dest = ctx.destination as { chainId?: number; token?: string; recipientAddress?: string; app?: string; memo?: string };
+          if (dest.recipientAddress) {
+            setSdkDestination({
+              chainId: dest.chainId ?? 43113,
+              token: dest.token ?? 'USDC',
+              recipientAddress: dest.recipientAddress,
+              app: dest.app,
+              memo: dest.memo,
+            });
+          }
         }
+        if (ctx.asset) {
+          const found = TOKENS.find(t => t.symbol === ctx.asset);
+          if (found) setToken(found);
+        }
+        setSdkPrefilled(true);
       }
     };
     chrome.runtime.onMessage.addListener(handler);
@@ -126,6 +150,7 @@ export default function XRampBuy(): ReactElement {
         targetAsset: token.symbol,
         rail: method?.id,
         paymentHandle: handle.trim() || undefined,
+        ...(sdkDestination ? { destination: sdkDestination } : {}),
       }, token_ ?? undefined);
       setIntentId(intent.id);
       setStep('pending');
@@ -202,6 +227,7 @@ export default function XRampBuy(): ReactElement {
               amount,
               state: 'COMPLETE',
               proofHash: result.proofHash,
+              ...(sdkDestination ? { destination: sdkDestination } : {}),
             },
           });
         } catch {
@@ -218,7 +244,7 @@ export default function XRampBuy(): ReactElement {
       setProofReason(e instanceof Error ? e.message : 'Unexpected error');
       setStep('failed');
     }
-  }, [intentId, amount, handle, method, getAccessToken]);
+  }, [intentId, amount, handle, method, getAccessToken, sdkDestination]);
 
   const handleVerifyRevolut = useCallback(async () => {
     if (!intentId || !method) return;
@@ -286,6 +312,7 @@ export default function XRampBuy(): ReactElement {
               amount,
               state: 'COMPLETE',
               proofHash: result.proofHash,
+              ...(sdkDestination ? { destination: sdkDestination } : {}),
             },
           });
         } catch {
@@ -302,7 +329,7 @@ export default function XRampBuy(): ReactElement {
       setProofReason(e instanceof Error ? e.message : 'Unexpected error');
       setStep('failed');
     }
-  }, [intentId, amount, handle, method, getAccessToken]);
+  }, [intentId, amount, handle, method, getAccessToken, sdkDestination]);
 
   // ─── Pending / verified / failed screens ─────────────────────────────────
   if (step === 'pending' || step === 'verifying' || step === 'verified' || step === 'failed') {
@@ -660,6 +687,29 @@ export default function XRampBuy(): ReactElement {
             </svg>
             <span>{error}</span>
           </ErrorRow>
+        )}
+
+        {/* SDK destination badge */}
+        {sdkDestination && (
+          <Card>
+            <Label>Delivering to</Label>
+            <InfoRow>
+              <InfoLabel>Address</InfoLabel>
+              <InfoValue style={{ fontFamily: 'monospace', fontSize: '11px' }}>
+                {sdkDestination.recipientAddress.slice(0, 6)}…{sdkDestination.recipientAddress.slice(-4)}
+              </InfoValue>
+            </InfoRow>
+            <InfoRow>
+              <InfoLabel>Chain</InfoLabel>
+              <InfoValue>{sdkDestination.chainId === 43113 ? 'Avalanche Fuji' : `Chain ${sdkDestination.chainId}`}</InfoValue>
+            </InfoRow>
+            {sdkDestination.app && (
+              <InfoRow>
+                <InfoLabel>App</InfoLabel>
+                <InfoValue style={{ color: colors.primary }}>{sdkDestination.app.toUpperCase()}</InfoValue>
+              </InfoRow>
+            )}
+          </Card>
         )}
 
         {/* Loader */}
