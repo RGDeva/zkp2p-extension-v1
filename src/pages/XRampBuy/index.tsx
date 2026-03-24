@@ -25,9 +25,10 @@ const TOKENS = [
   { symbol: 'WAVAX', name: 'Wrapped AVAX',         icon: 'WAVAX', chain: 'Avalanche' },
 ];
 
-// Only Venmo is live — others shown as coming soon for UI completeness
+// Live payment methods — Venmo has automated proof, Wise is manual verification for now
 const PAYMENT_METHODS = [
   { id: 'venmo', label: 'Venmo', icon: '📱', live: true },
+  { id: 'wise',  label: 'Wise',  icon: '🌐', live: true },
 ];
 
 
@@ -274,6 +275,18 @@ export default function XRampBuy(): ReactElement {
                   Open Venmo &amp; Pay
                 </VenmoDeepLink>
               )}
+
+              {method?.id === 'wise' && (
+                <VenmoDeepLink
+                  onClick={() => chrome.tabs.create({ url: 'https://wise.com/send' })}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                    <polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" />
+                  </svg>
+                  Open Wise &amp; Send
+                </VenmoDeepLink>
+              )}
             </InstructionsCard>
           )}
 
@@ -304,6 +317,16 @@ export default function XRampBuy(): ReactElement {
               </svg>
               Verify with Venmo (Beta)
             </VenmoVerifyButton>
+          )}
+
+          {/* Manual verification notice for non-Venmo rails */}
+          {step === 'pending' && method?.id !== 'venmo' && (
+            <ManualVerifyNotice>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10" /><line x1="12" y1="16" x2="12" y2="12" /><line x1="12" y1="8" x2="12.01" y2="8" />
+              </svg>
+              <span>Automated proof coming soon — payment will be verified manually by admin.</span>
+            </ManualVerifyNotice>
           )}
 
           {/* Retry after failure */}
@@ -812,4 +835,20 @@ const OpenAppButton = styled.button`
   animation: ${fadeIn} 0.4s ease-out 0.2s both;
 
   &:hover { background: ${colors.selectorHover}; color: ${colors.foreground}; }
+`;
+
+const ManualVerifyNotice = styled.div`
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  border-radius: 0.75rem;
+  background: ${colors.primaryMuted};
+  border: 1px solid ${colors.primary}33;
+  color: ${colors.mutedForeground};
+  font-size: 12px;
+  line-height: 1.5;
+  animation: ${fadeIn} 0.4s ease-out 0.15s both;
+
+  svg { flex-shrink: 0; margin-top: 1px; color: ${colors.primary}; }
 `;
