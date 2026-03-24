@@ -72,6 +72,7 @@ export default function XRampBuy(): ReactElement {
     memo?: string;
   } | null>(null);
   const [sdkPrefilled, setSdkPrefilled] = useState(false);
+  const [sdkQuoteId, setSdkQuoteId] = useState<string | undefined>(undefined);
 
   // SDK prefill: listen for navigate messages with context from background
   useEffect(() => {
@@ -99,6 +100,7 @@ export default function XRampBuy(): ReactElement {
           const found = TOKENS.find(t => t.symbol === ctx.asset);
           if (found) setToken(found);
         }
+        if (ctx.quoteId) setSdkQuoteId(String(ctx.quoteId));
         setSdkPrefilled(true);
       }
     };
@@ -151,6 +153,7 @@ export default function XRampBuy(): ReactElement {
         rail: method?.id,
         paymentHandle: handle.trim() || undefined,
         ...(sdkDestination ? { destination: sdkDestination } : {}),
+        ...(sdkQuoteId ? { quoteId: sdkQuoteId } : {}),
       }, token_ ?? undefined);
       setIntentId(intent.id);
       setStep('pending');

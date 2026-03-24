@@ -56,6 +56,8 @@ export const orchestratorClient = {
       app?: string;
       memo?: string;
     };
+    quoteId?: string;
+    quoteSnapshot?: Record<string, unknown>;
   }, authToken?: string): Promise<{ intent: OrchestratorIntent }> {
     return apiFetch('/intents', {
       method: 'POST',
