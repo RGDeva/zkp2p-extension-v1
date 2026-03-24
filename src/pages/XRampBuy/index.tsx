@@ -15,6 +15,7 @@ import { VENMO_PROOF_ENABLED } from '../../lib/featureFlags';
 import { getProvider } from '../../lib/providers';
 import { orchestratorClient } from '../../lib/orchestratorClient';
 import { verifyVenmoPayment } from '../../lib/venmoProofRunner';
+import { verifyRevolutPayment } from '../../lib/revolutProofRunner';
 
 // Avalanche-native tokens only — these are the only chains XRamp settles today
 const TOKENS = [
@@ -27,8 +28,9 @@ const TOKENS = [
 
 // Live payment methods — Venmo has automated proof, Wise is manual verification for now
 const PAYMENT_METHODS = [
-  { id: 'venmo', label: 'Venmo', icon: '📱', live: true },
-  { id: 'wise',  label: 'Wise',  icon: '🌐', live: true },
+  { id: 'venmo',   label: 'Venmo',   icon: '📱', live: true },
+  { id: 'revolut', label: 'Revolut', icon: '🔄', live: true },
+  { id: 'wise',    label: 'Wise',    icon: '🌐', live: true },
 ];
 
 
@@ -60,6 +62,25 @@ export default function XRampBuy(): ReactElement {
   const [intentId, setIntentId] = useState<string | null>(null);
   const [proofHash, setProofHash] = useState<string | null>(null);
   const [proofReason, setProofReason] = useState<string | null>(null);
+
+  // SDK prefill: listen for navigate messages with context from background
+  useEffect(() => {
+    const handler = (message: { action?: string; route?: string; context?: Record<string, string> }) => {
+      if (message.action === 'navigate' && message.route === '/buy' && message.context) {
+        const ctx = message.context;
+        if (ctx.amount) setAmount(ctx.amount);
+        if (ctx.provider) {
+          const found = PAYMENT_METHODS.find(m => m.id === ctx.provider);
+          if (found) setMethod(found);
+        }
+        if (ctx.destination) {
+          try { localStorage.setItem('xramp_sdk_destination', ctx.destination); } catch { /* ignore */ }
+        }
+      }
+    };
+    chrome.runtime.onMessage.addListener(handler);
+    return () => chrome.runtime.onMessage.removeListener(handler);
+  }, []);
 
   // Load saved handle from localStorage on mount
   useEffect(() => {
@@ -171,6 +192,106 @@ export default function XRampBuy(): ReactElement {
           // Tab may not be open — that's fine
         }
 
+        // Emit SDK intent completion
+        try {
+          chrome.runtime.sendMessage({
+            action: 'xramp_intent_complete_to_tab',
+            data: {
+              intentId,
+              rail: 'venmo',
+              amount,
+              state: 'COMPLETE',
+              proofHash: result.proofHash,
+            },
+          });
+        } catch {
+          // Non-fatal
+        }
+
+        setProofHash(result.proofHash);
+        setStep('verified');
+      } else {
+        setProofReason(result.reason ?? 'Verification failed');
+        setStep('failed');
+      }
+    } catch (e) {
+      setProofReason(e instanceof Error ? e.message : 'Unexpected error');
+      setStep('failed');
+    }
+  }, [intentId, amount, handle, method, getAccessToken]);
+
+  const handleVerifyRevolut = useCallback(async () => {
+    if (!intentId || !method) return;
+    setStep('verifying');
+    setProofReason(null);
+    try {
+      const result = await verifyRevolutPayment({
+        intentId,
+        amount,
+        recipientTag: handle.trim(),
+        memo: `XRAMP-${intentId.slice(0, 8)}`,
+      });
+
+      if (result.verified && result.proofHash) {
+        // Submit proof to orchestrator
+        try {
+          const token_ = await getAccessToken().catch(() => null);
+          await orchestratorClient.submitProof(intentId, {
+            providerId: result.providerId,
+            proofHash: result.proofHash,
+            payload: result.proofPayload,
+          }, token_ ?? undefined);
+        } catch {
+          // Non-fatal — proof is stored locally even if backend call fails
+        }
+
+        // Persist proof to chrome.storage so XRampProofs page can display it
+        try {
+          const PROOF_KEY = 'xramp_proofs';
+          chrome.storage.local.get([PROOF_KEY], (existing) => {
+            const prev: unknown[] = existing[PROOF_KEY] || [];
+            const entry = {
+              intentId,
+              providerId: result.providerId,
+              proofHash: result.proofHash,
+              verified: true,
+              amount: result.extracted?.amount,
+              recipientName: result.extracted?.recipientName,
+              date: result.extracted?.date,
+              storedAt: new Date().toISOString(),
+            };
+            chrome.storage.local.set({ [PROOF_KEY]: [...prev, entry] });
+          });
+        } catch {
+          // Non-fatal
+        }
+
+        // Relay to XRamp web app tab
+        try {
+          chrome.runtime.sendMessage({
+            action: 'xramp_proof_to_tab',
+            data: result,
+          });
+        } catch {
+          // Tab may not be open — that's fine
+        }
+
+        // Emit SDK intent completion
+        try {
+          chrome.runtime.sendMessage({
+            action: 'xramp_intent_complete_to_tab',
+            data: {
+              intentId,
+              rail: 'revolut',
+              amount,
+              state: 'COMPLETE',
+              proofHash: result.proofHash,
+            },
+          });
+        } catch {
+          // Non-fatal
+        }
+
         setProofHash(result.proofHash);
         setStep('verified');
       } else {
@@ -187,7 +308,8 @@ export default function XRampBuy(): ReactElement {
   if (step === 'pending' || step === 'verifying' || step === 'verified' || step === 'failed') {
     const shortId = intentId ? intentId.slice(0, 8) : '—';
     const lpHandle = method ? getProvider(method.id).lpHandle : '(LP handle)';
-    const showVerifyBtn = VENMO_PROOF_ENABLED && method?.id === 'venmo' && step === 'pending';
+    const showVenmoVerifyBtn = VENMO_PROOF_ENABLED && method?.id === 'venmo' && step === 'pending';
+    const showRevolutVerifyBtn = method?.id === 'revolut' && step === 'pending';
 
     return (
       <PageWrapper>
@@ -276,6 +398,21 @@ export default function XRampBuy(): ReactElement {
                 </VenmoDeepLink>
               )}
 
+              {method?.id === 'revolut' && (
+                <VenmoDeepLink
+                  onClick={() => {
+                    const tag = lpHandle.replace('@', '');
+                    chrome.tabs.create({ url: `https://revolut.me/${tag}` });
+                  }}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                    <polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" />
+                  </svg>
+                  Open Revolut &amp; Pay
+                </VenmoDeepLink>
+              )}
+
               {method?.id === 'wise' && (
                 <VenmoDeepLink
                   onClick={() => chrome.tabs.create({ url: 'https://wise.com/send' })}
@@ -310,7 +447,7 @@ export default function XRampBuy(): ReactElement {
           )}
 
           {/* Venmo Verify button (feature-flagged) */}
-          {showVerifyBtn && (
+          {showVenmoVerifyBtn && (
             <VenmoVerifyButton onClick={handleVerifyVenmo}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
@@ -319,8 +456,18 @@ export default function XRampBuy(): ReactElement {
             </VenmoVerifyButton>
           )}
 
-          {/* Manual verification notice for non-Venmo rails */}
-          {step === 'pending' && method?.id !== 'venmo' && (
+          {/* Revolut Verify button */}
+          {showRevolutVerifyBtn && (
+            <VenmoVerifyButton onClick={handleVerifyRevolut}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+              </svg>
+              Verify with Revolut
+            </VenmoVerifyButton>
+          )}
+
+          {/* Manual verification notice for rails without automated proof */}
+          {step === 'pending' && method?.id !== 'venmo' && method?.id !== 'revolut' && (
             <ManualVerifyNotice>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="12" cy="12" r="10" /><line x1="12" y1="16" x2="12" y2="12" /><line x1="12" y1="8" x2="12.01" y2="8" />
@@ -332,6 +479,12 @@ export default function XRampBuy(): ReactElement {
           {/* Retry after failure */}
           {step === 'failed' && VENMO_PROOF_ENABLED && method?.id === 'venmo' && (
             <VenmoVerifyButton onClick={handleVerifyVenmo} style={{ marginTop: 0 }}>
+              Retry Verification
+            </VenmoVerifyButton>
+          )}
+
+          {step === 'failed' && method?.id === 'revolut' && (
+            <VenmoVerifyButton onClick={handleVerifyRevolut} style={{ marginTop: 0 }}>
               Retry Verification
             </VenmoVerifyButton>
           )}
