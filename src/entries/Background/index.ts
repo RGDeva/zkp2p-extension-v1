@@ -177,6 +177,43 @@ chrome.runtime.onMessage.addListener((message) => {
     cache.set(platform, { ...onramperIntent, fiatToSend });
   }
 
+  // SDK: open side panel at /buy with prefilled onramp config
+  if (message.action === 'xramp_open_onramp_background') {
+    const config = message.data || {};
+    chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
+      if (!tabs[0] || !tabs[0].id) return;
+
+      // @ts-ignore
+      chrome.sidePanel.open({ tabId: tabs[0].id }).then(() => {
+        pendingRoute = '/buy';
+
+        chrome.runtime.sendMessage({
+          action: 'navigate',
+          route: pendingRoute,
+          context: config,
+        });
+      }).catch((error: any) => console.error('Error opening side panel for SDK onramp:', error));
+    });
+  }
+
+  // SDK: relay intent completion to XRamp web app tabs
+  if (message.action === 'xramp_intent_complete_to_tab') {
+    chrome.tabs.query({}, (tabs) => {
+      for (const tab of tabs) {
+        if (!tab.id || !tab.url) continue;
+        const isXRamp =
+          tab.url.startsWith('https://xramp-app.vercel.app') ||
+          tab.url.startsWith('http://localhost:5173');
+        if (isXRamp) {
+          chrome.tabs.sendMessage(tab.id, {
+            action: 'relay_intent_complete',
+            data: message.data,
+          });
+        }
+      }
+    });
+  }
+
   // Relay a Venmo proof result to the XRamp web app tab via its content script
   if (message.action === 'xramp_proof_to_tab') {
     const xrampUrls = [

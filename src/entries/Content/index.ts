@@ -57,6 +57,21 @@ window.addEventListener('message', function (event) {
 
     chrome.runtime.sendMessage({ action: 'post_onramper_intent_background', data: event.data });
   }
+
+  // ── XRamp SDK bridge ────────────────────────────────────────────────────
+
+  // Ping/pong for extension detection
+  if (event.data.type && event.data.type === 'XRAMP_PING') {
+    window.postMessage({ type: 'XRAMP_PONG', version: '0.0.8' }, '*');
+  }
+
+  // SDK onramp request → open side panel with prefilled config
+  if (event.data.type && event.data.type === 'XRAMP_OPEN_ONRAMP') {
+    chrome.runtime.sendMessage({
+      action: 'xramp_open_onramp_background',
+      data: event.data.payload,
+    });
+  }
 });
 
 /*
@@ -111,6 +126,14 @@ chrome.runtime.onMessage.addListener((message) => {
   if (message.action === 'relay_proof_result') {
     window.postMessage(
       { type: 'XRAMP_PROOF_RESULT', payload: message.data },
+      '*',
+    );
+  }
+
+  // Forward intent completion from background → web app page (SDK callback)
+  if (message.action === 'relay_intent_complete') {
+    window.postMessage(
+      { type: 'XRAMP_INTENT_COMPLETE', payload: message.data },
       '*',
     );
   }
