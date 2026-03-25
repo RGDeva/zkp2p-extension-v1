@@ -58,6 +58,10 @@ export const orchestratorClient = {
     };
     quoteId?: string;
     quoteSnapshot?: Record<string, unknown>;
+    quoteSource?: string;
+    quotePartnerId?: string;
+    quotePartnerName?: string;
+    settlementHandle?: string;
   }, authToken?: string): Promise<{ intent: OrchestratorIntent }> {
     return apiFetch('/intents', {
       method: 'POST',

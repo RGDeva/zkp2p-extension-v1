@@ -73,6 +73,10 @@ export default function XRampBuy(): ReactElement {
   } | null>(null);
   const [sdkPrefilled, setSdkPrefilled] = useState(false);
   const [sdkQuoteId, setSdkQuoteId] = useState<string | undefined>(undefined);
+  const [sdkQuoteSource, setSdkQuoteSource] = useState<string | undefined>(undefined);
+  const [sdkPartnerId, setSdkPartnerId] = useState<string | undefined>(undefined);
+  const [sdkPartnerName, setSdkPartnerName] = useState<string | undefined>(undefined);
+  const [sdkSettlementHandle, setSdkSettlementHandle] = useState<string | undefined>(undefined);
 
   // SDK prefill: listen for navigate messages with context from background
   useEffect(() => {
@@ -101,6 +105,10 @@ export default function XRampBuy(): ReactElement {
           if (found) setToken(found);
         }
         if (ctx.quoteId) setSdkQuoteId(String(ctx.quoteId));
+        if (ctx.quoteSource) setSdkQuoteSource(String(ctx.quoteSource));
+        if (ctx.quotePartnerId) setSdkPartnerId(String(ctx.quotePartnerId));
+        if (ctx.quotePartnerName) setSdkPartnerName(String(ctx.quotePartnerName));
+        if (ctx.settlementHandle) setSdkSettlementHandle(String(ctx.settlementHandle));
         setSdkPrefilled(true);
       }
     };
@@ -133,6 +141,15 @@ export default function XRampBuy(): ReactElement {
   const hasHandle = !requiresHandle || handle.trim().length > 0;
   const canContinue = num > 0 && !!method && hasHandle;
 
+  // Resolve the expected LP settlement handle for proof verification.
+  // This is the handle the user PAID TO — not the buyer's own handle.
+  // partner_lp: must use sdkSettlementHandle from the selected quote route.
+  // xramp_lp:   use provider registry default (lpHandle).
+  const isPartnerLpRoute = sdkQuoteSource === 'partner_lp';
+  const expectedLpHandle = isPartnerLpRoute
+    ? (sdkSettlementHandle ?? '')
+    : (method ? getProvider(method.id).lpHandle : '');
+
   const getUserId = () =>
     user?.email || user?.walletAddress || user?.embeddedWalletAddress || 'guest';
 
@@ -154,6 +171,10 @@ export default function XRampBuy(): ReactElement {
         paymentHandle: handle.trim() || undefined,
         ...(sdkDestination ? { destination: sdkDestination } : {}),
         ...(sdkQuoteId ? { quoteId: sdkQuoteId } : {}),
+        ...(sdkQuoteSource ? { quoteSource: sdkQuoteSource } : {}),
+        ...(sdkPartnerId ? { quotePartnerId: sdkPartnerId } : {}),
+        ...(sdkPartnerName ? { quotePartnerName: sdkPartnerName } : {}),
+        ...(sdkSettlementHandle ? { settlementHandle: sdkSettlementHandle } : {}),
       }, token_ ?? undefined);
       setIntentId(intent.id);
       setStep('pending');
@@ -169,10 +190,19 @@ export default function XRampBuy(): ReactElement {
     setStep('verifying');
     setProofReason(null);
     try {
+      // Hard guard: partner route must have a settlement handle before we attempt proof.
+      if (isPartnerLpRoute && !expectedLpHandle) {
+        setProofReason(
+          `Cannot verify: partner LP route is missing settlement handle. ` +
+          `Partner: ${sdkPartnerName ?? sdkPartnerId ?? 'unknown'}.`,
+        );
+        setStep('failed');
+        return;
+      }
       const result = await verifyVenmoPayment({
         intentId,
         amount,
-        receiverUsernameOrId: handle.trim(),
+        receiverUsernameOrId: expectedLpHandle,
         note: `XRAMP-${intentId}`,
       });
 
@@ -230,6 +260,10 @@ export default function XRampBuy(): ReactElement {
               amount,
               state: 'COMPLETE',
               proofHash: result.proofHash,
+              source: sdkQuoteSource ?? 'xramp_lp',
+              settlementHandle: expectedLpHandle,
+              ...(sdkPartnerName ? { partnerName: sdkPartnerName } : {}),
+              ...(sdkPartnerId ? { partnerId: sdkPartnerId } : {}),
               ...(sdkDestination ? { destination: sdkDestination } : {}),
             },
           });
@@ -247,17 +281,26 @@ export default function XRampBuy(): ReactElement {
       setProofReason(e instanceof Error ? e.message : 'Unexpected error');
       setStep('failed');
     }
-  }, [intentId, amount, handle, method, getAccessToken, sdkDestination]);
+  }, [intentId, amount, expectedLpHandle, isPartnerLpRoute, method, getAccessToken, sdkDestination, sdkQuoteSource, sdkPartnerName, sdkPartnerId]);
 
   const handleVerifyRevolut = useCallback(async () => {
     if (!intentId || !method) return;
     setStep('verifying');
     setProofReason(null);
     try {
+      // Hard guard: partner route must have a settlement handle before we attempt proof.
+      if (isPartnerLpRoute && !expectedLpHandle) {
+        setProofReason(
+          `Cannot verify: partner LP route is missing settlement handle. ` +
+          `Partner: ${sdkPartnerName ?? sdkPartnerId ?? 'unknown'}.`,
+        );
+        setStep('failed');
+        return;
+      }
       const result = await verifyRevolutPayment({
         intentId,
         amount,
-        recipientTag: handle.trim(),
+        recipientTag: expectedLpHandle,
         memo: `XRAMP-${intentId.slice(0, 8)}`,
       });
 
@@ -315,6 +358,10 @@ export default function XRampBuy(): ReactElement {
               amount,
               state: 'COMPLETE',
               proofHash: result.proofHash,
+              source: sdkQuoteSource ?? 'xramp_lp',
+              settlementHandle: expectedLpHandle,
+              ...(sdkPartnerName ? { partnerName: sdkPartnerName } : {}),
+              ...(sdkPartnerId ? { partnerId: sdkPartnerId } : {}),
               ...(sdkDestination ? { destination: sdkDestination } : {}),
             },
           });
@@ -332,12 +379,14 @@ export default function XRampBuy(): ReactElement {
       setProofReason(e instanceof Error ? e.message : 'Unexpected error');
       setStep('failed');
     }
-  }, [intentId, amount, handle, method, getAccessToken, sdkDestination]);
+  }, [intentId, amount, expectedLpHandle, isPartnerLpRoute, method, getAccessToken, sdkDestination, sdkQuoteSource, sdkPartnerName, sdkPartnerId]);
 
   // ─── Pending / verified / failed screens ─────────────────────────────────
   if (step === 'pending' || step === 'verifying' || step === 'verified' || step === 'failed') {
     const shortId = intentId ? intentId.slice(0, 8) : '—';
-    const lpHandle = method ? getProvider(method.id).lpHandle : '(LP handle)';
+    // Use component-level derived values (isPartnerLpRoute, expectedLpHandle).
+    const missingPartnerHandle = isPartnerLpRoute && !expectedLpHandle;
+    const lpHandle = expectedLpHandle || '(LP handle)';
     const showVenmoVerifyBtn = VENMO_PROOF_ENABLED && method?.id === 'venmo' && step === 'pending';
     const showRevolutVerifyBtn = method?.id === 'revolut' && step === 'pending';
 
@@ -395,13 +444,25 @@ export default function XRampBuy(): ReactElement {
                 </PaymentFieldRow>
               </PaymentField>
 
+              {missingPartnerHandle && (
+                <PaymentField>
+                  <PaymentFieldValue style={{ color: colors.warningRed }}>
+                    ⚠ Routing error: partner handle missing. Do not send payment.
+                  </PaymentFieldValue>
+                </PaymentField>
+              )}
+
+              {!missingPartnerHandle && (
               <PaymentField>
-                <PaymentFieldLabel>Send to ({method?.label})</PaymentFieldLabel>
+                <PaymentFieldLabel>
+                  Send to ({method?.label}){isPartnerLp && sdkPartnerName ? ` · ${sdkPartnerName}` : ''}
+                </PaymentFieldLabel>
                 <PaymentFieldRow>
-                  <PaymentFieldValue style={{ color: colors.primary }}>{lpHandle}</PaymentFieldValue>
+                  <PaymentFieldValue style={{ color: isPartnerLp ? colors.warningAmber : colors.primary }}>{lpHandle}</PaymentFieldValue>
                   <CopyButton onClick={() => navigator.clipboard.writeText(lpHandle).catch(() => {})}>Copy</CopyButton>
                 </PaymentFieldRow>
               </PaymentField>
+              )}
 
               <PaymentField>
                 <PaymentFieldLabel>Memo (required)</PaymentFieldLabel>
